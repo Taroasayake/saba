@@ -16,6 +16,7 @@ namespace saba
 	{
 	}
 
+	//  (ctx, 0.5f, 10, 5)
 	bool Grid::Initialize(const ViewerContext & ctxt, float gridSize, int gridCount, int bold)
 	{
 		std::vector<glm::vec3> posVec;

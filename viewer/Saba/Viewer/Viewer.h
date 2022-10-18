@@ -14,6 +14,7 @@
 #include "Grid.h"
 #include "ModelDrawer.h"
 #include "CameraOverrider.h"
+#include "BackImage.h"
 
 #include <Saba/GL/GLObject.h>
 #include <Saba/GL/Model/MMD/GLMMDModel.h>
@@ -30,6 +31,16 @@
 #include <string>
 #include <memory>
 #include <deque>
+
+
+#include <vector>
+
+extern "C" {
+#include <libavutil/imgutils.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+}
 
 namespace saba
 {
@@ -172,6 +183,58 @@ namespace saba
 		void RegisterCommand();
 		void RefreshCustomCommand();
 
+
+		// shibata 追加分
+		// shibata 追加分
+		//void DrawModel();
+		//void DrawVmd();
+		//std::vector<VMDFile> vmd_vect;
+		void DrawImage();
+		int imageHeight;
+		int imageWidth;
+		GLuint	m_dummyImageTex1;
+		GLuint	m_dummyImageTex2;
+		void ViewMpeg(float animFrame, float animTime, bool resetTime, bool prevframe);
+		bool LoadFfmpeg;
+		bool LoadMpegfile(const std::string& filename);
+
+		double mpeg_framerate;					// frame rate(streamより) 
+		int64_t mpeg_numofframes;				// frame数 (streamより)
+		//int64_t mpeg_best_effort_time;
+
+		int64_t mpeg_coded_picture_number;
+		int64_t mpeg_display_picture_number;
+		int64_t mpeg_last_pts;
+		int64_t mpeg_last_pts_frameno;
+		int64_t mpeg_last_pos;
+		double mpeg_last_frame_time;
+
+		double mpeg_frame_time;					// 計算からだしている動画上の時間(あってそう)
+		int Mpegframeno;						// カウントしているframe no
+
+		AVFormatContext* format_context;
+		AVStream* video_stream;
+		int stream_index;
+		AVCodec* codec;
+		AVCodecContext* codec_context;
+		struct SwsContext* swsctx;
+		AVPicture dst_picture;
+
+		bool b_view_mpeg;
+		bool b_view_mpeg_sm;
+		float mpeg_scale;
+		float mpeg_x;
+		float mpeg_y;
+		float mpeg_z;
+		std::wstring mpeg_filename;
+
+		std::wstring pmx_filename;
+		std::wstring vmd_filename;
+
+		bool mpeg_push_init;
+		bool mpeg_push_prev;
+
+
 		bool CmdOpen(const std::vector<std::string>& args);
 		bool CmdClear(const std::vector<std::string>& args);
 		bool CmdPlay(const std::vector<std::string>& args);
@@ -244,6 +307,9 @@ namespace saba
 		CameraMode	m_cameraMode;
 		Grid		m_grid;
 		bool		m_gridEnabled;
+
+		BackImage	m_backImage;
+
 		MouseLockMode	m_mouseLockMode;
 		glm::vec3	m_bboxMin;
 		glm::vec3	m_bboxMax;

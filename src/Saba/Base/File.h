@@ -105,10 +105,10 @@ namespace saba
 			return true;
 		}
 
-	private:
+	public:
 		bool OpenFile(const char* filepath, const char* mode);
 
-	private:
+	public:
 		FILE*	m_fp;
 		Offset	m_fileSize;
 		bool	m_badFlag;

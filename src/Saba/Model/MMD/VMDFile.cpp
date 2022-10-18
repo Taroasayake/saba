@@ -227,6 +227,54 @@ namespace saba
 		}
 	}
 
+#include <stdlib.h>
+	void Dump(VMDFile* vmd, const char* filename)
+	{
+		char dumpfilename[512];
+
+		// Dump用のファイルを用意する
+		{
+			char drive[5];
+			char dir[256];
+			char fname[256];
+			char ext[256];
+
+			errno_t e = _splitpath_s(filename, drive, sizeof(drive), dir, sizeof(dir), fname, sizeof(fname), ext, sizeof(ext));
+
+			e = _makepath_s(dumpfilename, sizeof(dumpfilename), drive, dir, fname, ".txt");
+		}
+
+		File file;
+		bool result = file.OpenFile(dumpfilename, "wt, ccs=UTF-8");
+		if (result)
+		{
+			fwprintf(file.m_fp, L"%s\n", ToWString(vmd->m_header.m_header.ToUtf8String()).c_str());
+			fwprintf(file.m_fp, L"%s\n", ToWString(vmd->m_header.m_modelName.ToUtf8String()).c_str());
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"モーションデータ数:%zd\n", vmd->m_motions.size());
+			{
+				int c = 0;
+				for (auto& motion : vmd->m_motions)
+				{
+					fwprintf(file.m_fp, L"%06d", c);
+					fwprintf(file.m_fp, L":ボーン名:%s", ToWString(motion.m_boneName.ToUtf8String()).c_str());
+					fwprintf(file.m_fp, L":frame:%d", motion.m_frame);
+					fwprintf(file.m_fp, L":translate(%f,%f,%f)", motion.m_translate.x, motion.m_translate.y, motion.m_translate.z);
+					//fwprintf(file.m_fp, L":quaternion(%f,%f,%f)", motion.m_quaternion.);
+
+
+					fwprintf(file.m_fp, L"\n");
+					++c;
+				}
+			}
+			fwprintf(file.m_fp, L"\n");
+
+
+		}
+		file.Close();
+	}
+
 	bool ReadVMDFile(VMDFile * vmd, const char * filename)
 	{
 		File file;
@@ -236,7 +284,14 @@ namespace saba
 			return false;
 		}
 
-		return ReadVMDFile(vmd, file);
+		bool result = ReadVMDFile(vmd, file);
+
+		if (result)
+		{
+			Dump(vmd, filename);
+		}
+
+		return result;
 	}
 
 }

@@ -821,6 +821,135 @@ namespace saba
 		}
 	}
 
+#include <stdlib.h>
+	void Dump(PMXFile* pmxFile, const char* filename)
+	{
+		char dumpfilename[512];
+
+		// Dump用のファイルを用意する
+		{
+			char drive[5];
+			char dir[256];
+			char fname[256];
+			char ext[256];
+
+			errno_t e = _splitpath_s(filename, drive, sizeof(drive), dir, sizeof(dir), fname, sizeof(fname), ext, sizeof(ext));
+
+			e = _makepath_s(dumpfilename, sizeof(dumpfilename), drive, dir, fname, ".txt");
+		}
+
+		File file;
+		bool result = file.OpenFile(dumpfilename, "wt, ccs=UTF-8");
+		if (result)
+		{
+			//file.Write(pmxFile->m_header.m_magic.ToCString(), strlen(pmxFile->m_header.m_magic.ToCString()));
+
+			fwprintf(file.m_fp, L"PMX Ver. %f\n", pmxFile->m_header.m_version);
+			if (pmxFile->m_header.m_encode == 0)
+			{
+				fwprintf(file.m_fp, L"UTF16\n");
+			}
+			else
+			{
+				fwprintf(file.m_fp, L"UTF8\n");
+			}
+			fwprintf(file.m_fp, L"追加UV数             :%d\n", pmxFile->m_header.m_addUVNum);
+			fwprintf(file.m_fp, L"頂点Indexサイズ      :%d\n", pmxFile->m_header.m_vertexIndexSize);
+			fwprintf(file.m_fp, L"テクスチャIndexサイズ:%d\n", pmxFile->m_header.m_textureIndexSize);
+			fwprintf(file.m_fp, L"材質Indexサイズ      :%d\n", pmxFile->m_header.m_materialIndexSize);
+			fwprintf(file.m_fp, L"ボーンIndexサイズ    :%d\n", pmxFile->m_header.m_boneIndexSize);
+			fwprintf(file.m_fp, L"モーフIndexサイズ    :%d\n", pmxFile->m_header.m_morphIndexSize);
+			fwprintf(file.m_fp, L"剛体Indexサイズ      :%d\n", pmxFile->m_header.m_rigidbodyIndexSize);
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"モデル名             :%s\n", ToWString(pmxFile->m_info.m_modelName).c_str());
+			fwprintf(file.m_fp, L"モデル名英           :%s\n", ToWString(pmxFile->m_info.m_englishModelName).c_str());
+			fwprintf(file.m_fp, L"コメント             :%s\n", ToWString(pmxFile->m_info.m_comment).c_str());
+			fwprintf(file.m_fp, L"コメント英           :%s\n", ToWString(pmxFile->m_info.m_englishComment).c_str());
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"頂点データ数:%zd\n", pmxFile->m_vertices.size());
+			{
+				fwprintf(file.m_fp, L"省略\n");
+				//int c = 0;
+				//for (auto& vertex : pmxFile->m_vertices)
+				//{
+				//	fwprintf(file.m_fp, L"%06d", c);
+				//	fwprintf(file.m_fp, L":position(%f,%f,%f)", vertex.m_position.x, vertex.m_position.y, vertex.m_position.z);
+
+
+				//	fwprintf(file.m_fp, L"\n");
+				//	++c;
+				//}
+			}
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"面データ数:%zd\n", pmxFile->m_faces.size());
+			fwprintf(file.m_fp, L"省略\n");
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"テクスチャデータ数:%zd\n", pmxFile->m_textures.size());
+			fwprintf(file.m_fp, L"省略\n");
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"材質データ数:%zd\n", pmxFile->m_materials.size());
+			fwprintf(file.m_fp, L"省略\n");
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"ボーンデータ数:%zd\n", pmxFile->m_bones.size());
+			{
+				int c = 0;
+				for (auto& bone : pmxFile->m_bones)
+				{
+					fwprintf(file.m_fp, L"%06d", c);
+					fwprintf(file.m_fp, L":ボーン名:%s", ToWString(bone.m_name).c_str());
+					fwprintf(file.m_fp, L":ボーン名英:%s", ToWString(bone.m_englishName).c_str());
+					fwprintf(file.m_fp, L":position(%f,%f,%f)", bone.m_position.x, bone.m_position.y, bone.m_position.z);
+					fwprintf(file.m_fp, L":親ボーンIndex:%d", bone.m_parentBoneIndex);
+					fwprintf(file.m_fp, L":変形階層:%d", bone.m_deformDepth);
+					fwprintf(file.m_fp, L":ボーンフラグ:%04X", bone.m_boneFlag);
+
+
+					fwprintf(file.m_fp, L"\n");
+					++c;
+				}
+			}
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"モーフデータ数:%zd\n", pmxFile->m_morphs.size());
+			{
+				int c = 0;
+				for (auto& morph : pmxFile->m_morphs)
+				{
+					fwprintf(file.m_fp, L"%06d", c);
+					fwprintf(file.m_fp, L":モーフ名:%s", ToWString(morph.m_name).c_str());
+					fwprintf(file.m_fp, L":モーフ名英:%s", ToWString(morph.m_englishName).c_str());
+
+					fwprintf(file.m_fp, L"\n");
+					++c;
+				}
+			}
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"表示枠データ数:%zd\n", pmxFile->m_displayFrames.size());
+			fwprintf(file.m_fp, L"省略\n");
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"剛体データ数:%zd\n", pmxFile->m_rigidbodies.size());
+			fwprintf(file.m_fp, L"省略\n");
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"Jointデータ数:%zd\n", pmxFile->m_joints.size());
+			fwprintf(file.m_fp, L"省略\n");
+			fwprintf(file.m_fp, L"\n");
+
+			fwprintf(file.m_fp, L"SoftBodyデータ数:%zd\n", pmxFile->m_softbodies.size());
+			fwprintf(file.m_fp, L"省略\n");
+			fwprintf(file.m_fp, L"\n");
+		}
+		file.Close();
+	}
+
 	bool ReadPMXFile(PMXFile * pmxFile, const char* filename)
 	{
 		File file;
@@ -836,6 +965,8 @@ namespace saba
 			return false;
 		}
 		SABA_INFO("PMX File Read Successed. {}", filename);
+
+		Dump(pmxFile, filename);
 
 		return true;
 	}

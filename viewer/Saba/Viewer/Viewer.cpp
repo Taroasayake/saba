@@ -3,9 +3,20 @@
 // Distributed under the MIT License (http://opensource.org/licenses/MIT)
 //
 
+//#include <GL/gl3w.h>
+//#include <GLFW/glfw3.h>
+//#if _WIN32
+//#define  GLFW_EXPOSE_NATIVE_WIN32
+//#include <GLFW/glfw3native.h>
+//#endif // _WIN32
+
+
+
 #include "Viewer.h"
 #include "VMDCameraOverrider.h"
 #include "ShadowMap.h"
+
+#include "Ini.h"
 
 #include <Saba/Base/Singleton.h>
 #include <Saba/Base/Log.h>
@@ -44,6 +55,26 @@
 #include <iomanip>
 #include <string>
 #include <thread>
+
+#include <cstdio>
+#include <vector>
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <iostream>
+
+#pragma comment(lib, "avutil.lib")
+#pragma comment(lib, "avcodec.lib")
+#pragma comment(lib, "avformat.lib")
+#pragma comment(lib, "swscale.lib")
+
+#include <shlwapi.h>
+#pragma comment(lib, "shlwapi.lib")
+#include "strconv.h"
+
+unsigned char framebuf[1920/8 * 1080 * 3];
 
 namespace saba
 {
@@ -146,12 +177,25 @@ namespace saba
 		, m_currentFrameBufferHeight(-1)
 		, m_currentMSAAEnable(false)
 		, m_currentMSAACount(0)
+		, mpeg_push_prev(false)
+		, mpeg_push_init(false)
+		, b_view_mpeg(false)
+		, b_view_mpeg_sm(false)
+		, mpeg_scale(1.0f)
+		, mpeg_x(0.0f)
+		, mpeg_y(0.0f)
+		, mpeg_z(0.0f)
 	{
 		if (!glfwInit())
 		{
 			m_glfwInitialized = false;
 		}
 		m_glfwInitialized = true;
+
+
+		m_dummyImageTex1 = 0;		// shibata
+		m_dummyImageTex2 = 0;		// shibata
+		LoadFfmpeg = false;			// shibata
 	}
 
 	Viewer::~Viewer()
@@ -181,13 +225,16 @@ namespace saba
 			m_context.EnableMSAA(true);
 			m_context.SetMSAACount(m_initParam.m_msaaCount);
 		}
-		m_window = glfwCreateWindow(1280, 800, "Saba Viewer", nullptr, nullptr);
+		//m_window = glfwCreateWindow(1280, 800, "Saba Viewer", nullptr, nullptr);
+		m_window = glfwCreateWindow(LoadIniAppInt(L"WIN_X_SIZE",1280), LoadIniAppInt(L"WIN_Y_SIZE", 800), "Saba Viewer", nullptr, nullptr);
 
 		if (m_window == nullptr)
 		{
 			SABA_ERROR("Window Create Fail.");
 			return false;
 		}
+
+		glfwSetWindowPos(m_window, LoadIniAppInt(L"WIN_X_POS", 0), LoadIniAppInt(L"WIN_Y_POS", 50));
 
 		// glfwコールバックの登録
 		glfwSetWindowUserPointer(m_window, this);
@@ -218,7 +265,8 @@ namespace saba
 		SetupSjisGryphRanges();
 		io.Fonts->AddFontFromFileTTF(
 			fontPath.c_str(),
-			14.0f,
+			//14.0f,
+			(float)LoadIniAppDouble(L"IMGUI_FONT_SIZE", 14.0),
 			nullptr,
 			m_gryphRanges.data()//io.Fonts->GetGlyphRangesJapanese()
 		);
@@ -257,6 +305,12 @@ namespace saba
 			return false;
 		}
 
+		if (!m_backImage.Initialize(m_context))
+		{
+			SABA_ERROR("back image Init Fail.");
+			return false;
+		}
+
 		if (!m_context.m_shadowmap.InitializeShader(&m_context))
 		{
 			SABA_ERROR("shadowmap InitializeShader Fail.");
@@ -277,6 +331,47 @@ namespace saba
 
 		m_prevTime = GetTime();
 
+		b_view_mpeg = LoadIniAppInt(L"VIEW_MPEG", 0);
+		b_view_mpeg_sm = LoadIniAppInt(L"VIEW_MPEG_SM", 0);
+		mpeg_scale = LoadIniAppDouble(L"MPEG_SCALE", 1.0);
+		mpeg_x = LoadIniAppDouble(L"MPEG_X", 0.0);
+		mpeg_y = LoadIniAppDouble(L"MPEG_Y", 0.0);
+		mpeg_z = LoadIniAppDouble(L"MPEG_Z", 0.0);
+		mpeg_filename = LoadIniAppString(L"MPEG_FILE", NULL);
+
+		pmx_filename = LoadIniAppString(L"PMX_FILE", NULL);
+		if (pmx_filename != L"")
+		{
+			if (::PathFileExists(pmx_filename.c_str()) && !::PathIsDirectory(pmx_filename.c_str()))
+			{
+				std::string sjis_str = wide_to_utf8(pmx_filename);
+
+				InitializeAnimation();
+
+				std::string ext = PathUtil::GetExt(sjis_str);
+				if (ext == "pmd")
+				{
+					LoadPMDFile(sjis_str);
+				}
+				else
+				{
+					LoadPMXFile(sjis_str);
+				}
+			}
+		}
+
+		vmd_filename = LoadIniAppString(L"VMD_FILE", NULL);
+		if (vmd_filename != L"")
+		{
+			if (::PathFileExists(vmd_filename.c_str()) && !::PathIsDirectory(vmd_filename.c_str()))
+			{
+				std::string sjis_str = wide_to_utf8(vmd_filename);
+
+				InitializeAnimation();
+				LoadVMDFile(sjis_str);
+			}
+		}
+
 		return true;
 	}
 
@@ -295,6 +390,11 @@ namespace saba
 
 	int Viewer::Run()
 	{
+		int old_x_size = LoadIniAppInt(L"WIN_X_SIZE", 1280);
+		int old_y_size = LoadIniAppInt(L"WIN_Y_SIZE", 800);
+		int old_x_pos = LoadIniAppInt(L"WIN_X_POS", 0);
+		int old_y_pos = LoadIniAppInt(L"WIN_Y_POS", 50);
+
 		while (!glfwWindowShouldClose(m_window))
 		{
 			ImGui_ImplOpenGL3_NewFrame();
@@ -371,6 +471,30 @@ namespace saba
 
 			glfwSwapBuffers(m_window);
 			glfwPollEvents();
+
+			if (windowW != old_x_size)
+			{
+				SaveIniAppInt(L"WIN_X_SIZE", windowW);
+				old_x_size = windowW;
+			}
+			if (windowH != old_y_size)
+			{
+				SaveIniAppInt(L"WIN_Y_SIZE", windowH);
+				old_y_size = windowH;
+			}
+
+			int xpos, ypos;
+			glfwGetWindowPos(m_window, &xpos, &ypos);
+			if (xpos != old_x_pos)
+			{
+				SaveIniAppInt(L"WIN_X_POS", xpos);
+				old_x_pos = xpos;
+			}
+			if (ypos != old_y_pos)
+			{
+				SaveIniAppInt(L"WIN_Y_POS", ypos);
+				old_y_pos = ypos;
+			}
 		}
 
 		return 0;
@@ -568,6 +692,24 @@ namespace saba
 			m_grid.SetWVPMatrix(wvp);
 			m_grid.Draw();
 		}
+
+
+		// 動画のイメージを作りたい
+		if(b_view_mpeg)
+		{
+			// m_dummyImageTex1
+			const auto world = glm::mat4(1.0);
+			const auto& view = m_context.GetCamera()->GetViewMatrix();
+			const auto& proj = m_context.GetCamera()->GetProjectionMatrix();
+			const auto wv = view * world;
+			const auto wvp = proj * view * world;
+
+			glm::mat4 t = glm::translate(wvp, glm::vec3(0.f, 0.f, -10.f));
+
+			m_backImage.SetWVPMatrix(t);
+			m_backImage.Draw(m_dummyImageTex1, mpeg_scale, mpeg_x, mpeg_y, mpeg_z);
+		}
+
 
 		for (auto& modelDrawer : m_modelDrawers)
 		{
@@ -905,7 +1047,9 @@ namespace saba
 		{
 			DrawManip();
 		}
-		DrawCtrlUI();
+		DrawCtrlUI();					// Control Buttonがある
+
+		DrawImage();					// Mpeg表示あり
 
 		DrawLightGuide();
 	}
@@ -1199,8 +1343,10 @@ namespace saba
 		float width = 300;
 		float height = 250;
 
-		ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Once);
-		ImGui::SetNextWindowPos(ImVec2(0, 100 + 20), ImGuiCond_Once);
+		//ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Once);
+		//ImGui::SetNextWindowPos(ImVec2(0, 100 + 20), ImGuiCond_Once);
+		ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowPos(ImVec2(0, 100 + 20), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Control", &m_enableCtrlUI);
 
 		ImGui::PushID("Control UI");
@@ -1373,17 +1519,21 @@ namespace saba
 		{
 			m_context.SetPlayMode(ViewerContext::PlayMode::NextFrame);
 		}
+		mpeg_push_prev = false;
 		if (ImGui::Button("Prev Frame"))
 		{
 			m_context.SetPlayMode(ViewerContext::PlayMode::PrevFrame);
+			mpeg_push_prev = true;
 		}
 		if (ImGui::Button("Reset Anim"))
 		{
 			ResetAnimation();
 		}
+		mpeg_push_init = false;
 		if (ImGui::Button("Init Anim"))
 		{
 			InitializeAnimation();
+			mpeg_push_init = true;
 		}
 		if (ImGui::Button("Clear Animation"))
 		{
@@ -1930,6 +2080,11 @@ namespace saba
 			{
 				return false;
 			}
+			else
+			{
+				pmx_filename = utf8_to_wide(filepath);
+				SaveIniAppString(L"PMX_FILE", pmx_filename.c_str());
+			}
 		}
 		else if (ext == "vmd")
 		{
@@ -1938,6 +2093,11 @@ namespace saba
 			{
 				return false;
 			}
+			else
+			{
+				vmd_filename = utf8_to_wide(filepath);
+				SaveIniAppString(L"VMD_FILE", vmd_filename.c_str());
+			}
 		}
 		else if (ext == "pmx")
 		{
@@ -1945,6 +2105,11 @@ namespace saba
 			if (!LoadPMXFile(filepath))
 			{
 				return false;
+			}
+			else
+			{
+				pmx_filename = utf8_to_wide(filepath);
+				SaveIniAppString(L"PMX_FILE", pmx_filename.c_str());
 			}
 		}
 		else if (ext == "vpd")
@@ -1957,6 +2122,20 @@ namespace saba
 		else if (ext == "x")
 		{
 			if (!LoadXFile(filepath))
+			{
+				return false;
+			}
+		}
+		else if (ext == "mp4")
+		{
+			if (!LoadMpegfile(filepath))
+			{
+				return false;
+			}
+		}
+		else if (ext == "mkv")
+		{
+			if (!LoadMpegfile(filepath))
 			{
 				return false;
 			}
@@ -2629,6 +2808,8 @@ namespace saba
 			return false;
 		}
 
+
+
 		SABA_INFO("bbox [{}, {}, {}] - [{}, {}, {}] radisu [{}] grid [{}]",
 			bboxMin.x, bboxMin.y, bboxMin.z,
 			bboxMax.x, bboxMax.y, bboxMax.z,
@@ -2888,4 +3069,344 @@ namespace saba
 		m_saveScrollY = y;
 	}
 
+	bool Viewer::LoadMpegfile(const std::string& filename)
+	{
+		// mpeg fileをドラッグ&ドロップしたとき呼ばれる
+		// iniファイルにファイル名を保管する
+		//wchar_t convf[2048];
+		//int length = mbstowcs(convf, filename.c_str(), filename.length());
+		//convf[length] = 0;
+		//mpeg_filename = convf;
+
+		mpeg_filename = utf8_to_wide(filename);
+
+		SaveIniAppString(L"MPEG_FILE", mpeg_filename.c_str());
+		LoadFfmpeg = false;
+		if (b_view_mpeg == false)
+		{
+			b_view_mpeg = true;
+			SaveIniAppInt(L"VIEW_MPEG", b_view_mpeg);
+		}
+		return true;
+	}
+
+
+	void Viewer::ViewMpeg(float animFrame,float animTime,bool resetTime, bool prevframe)
+	{
+		if (LoadFfmpeg == false)
+		{
+			av_register_all();
+
+			//const char* input_path = "E:\\DATA\\SRC\\MMD\\結果\\onegai2.mp4";
+			//const char* input_path = "E:\\TEMP\\Videos\\GoodVideo\\Twenty-Five.mp4";
+			if (mpeg_filename != L"")
+			{
+				if (::PathFileExists(mpeg_filename.c_str()) && !::PathIsDirectory(mpeg_filename.c_str()))
+				{
+					// 指定されたパスにファイルが存在、かつディレクトリでない
+					//char input_path[2048];
+					//int length = wcstombs(input_path, mpeg_filename.c_str(), mpeg_filename.length());
+					//input_path[length] = 0;
+					//std::string sjis_str = wide_to_sjis(mpeg_filename);
+					std::string sjis_str = wide_to_utf8(mpeg_filename);
+
+					try
+					{
+						SABA_INFO("Openning mpeg file. {}", sjis_str.c_str());
+						format_context = nullptr;
+						if (avformat_open_input(&format_context, sjis_str.c_str(), nullptr, nullptr) != 0) {
+							SABA_INFO("avformat_open_input failed\n");
+						}
+
+						if (avformat_find_stream_info(format_context, nullptr) < 0) {
+							SABA_INFO("avformat_find_stream_info failed\n");
+						}
+
+						video_stream = nullptr;
+						for (int i = 0; i < (int)format_context->nb_streams; ++i) {
+							if (format_context->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+								video_stream = format_context->streams[i];
+								stream_index = i;
+								break;
+							}
+						}
+						if (video_stream == nullptr) {
+							SABA_INFO("No video stream ...\n");
+						}
+
+						mpeg_framerate = av_q2d(video_stream->avg_frame_rate);
+						mpeg_numofframes = video_stream->nb_frames;
+
+						/* find decoder for the stream */
+						if (video_stream->codecpar->codec_id == AV_CODEC_ID_H264)
+						{
+							codec = avcodec_find_decoder_by_name("h264_cuvid");
+						}
+						else if (video_stream->codecpar->codec_id == AV_CODEC_ID_HEVC)
+						{
+							codec = avcodec_find_decoder_by_name("hevc_cuvid");
+						}
+						else
+						{
+							codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
+						}
+
+						//codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
+
+						if (codec == nullptr) {
+							SABA_INFO("No supported decoder ...\n");
+						}
+
+						codec_context = avcodec_alloc_context3(codec);
+						//codec_context->pix_fmt = AV_PIX_FMT_GBRAP;
+
+						if (codec_context == nullptr) {
+							SABA_INFO("avcodec_alloc_context3 failed\n");
+						}
+
+						if (avcodec_parameters_to_context(codec_context, video_stream->codecpar) < 0) {
+							SABA_INFO("avcodec_parameters_to_context failed\n");
+						}
+
+						if (avcodec_open2(codec_context, codec, nullptr) != 0) {
+							SABA_INFO("avcodec_open2 failed\n");
+						}
+
+						swsctx = sws_getContext(
+							codec_context->width, codec_context->height, codec_context->pix_fmt,
+							codec_context->width, codec_context->height, AV_PIX_FMT_RGB24,
+							SWS_BICUBIC, 0, 0, 0);
+
+						SABA_INFO("mpeg {} x {}", codec_context->width, codec_context->height);
+
+						avpicture_alloc(&dst_picture, AV_PIX_FMT_RGB24, codec_context->width, codec_context->height);
+
+						Mpegframeno = -1;
+						mpeg_frame_time = -1;
+
+						imageWidth = codec_context->width;
+						imageHeight = codec_context->height;
+
+						LoadFfmpeg = true;
+					}
+					catch (...)
+					{
+						SABA_INFO("mpeg file load error.");
+						LoadFfmpeg = false;
+						b_view_mpeg = false;
+					}
+				}
+				else
+				{
+					LoadFfmpeg = false;
+					b_view_mpeg = false;
+				}
+			}
+			else
+			{
+				LoadFfmpeg = false;
+				b_view_mpeg = false;
+			}
+		}
+
+		if (b_view_mpeg == true)
+		{
+			if (resetTime == true)
+			{
+				int result = av_seek_frame(format_context, stream_index, 0, AVSEEK_FLAG_BACKWARD);
+				if (result < 0)
+				{
+					SABA_INFO("seek failed.");
+				}
+				avcodec_flush_buffers(codec_context);
+				Mpegframeno = -1;
+				mpeg_frame_time = -1;
+			}
+
+			if (prevframe)
+			{
+				// フレームが戻った?
+				//int result = av_seek_frame(format_context, stream_index, animTime / av_q2d(video_stream->time_base), AVSEEK_FLAG_BACKWARD);
+				//int64_t pos = mpeg_last_pts * av_q2d(video_stream->time_base);
+				//int64_t pos = animTime * av_q2d(video_stream->time_base);
+				int64_t pos = mpeg_last_pts;
+				int result = av_seek_frame(format_context, stream_index, pos, AVSEEK_FLAG_ANY);
+				//int result = av_seek_frame(format_context, stream_index, animFrame, AVSEEK_FLAG_FRAME);
+				//int result = avio_seek(format_context->pb, mpeg_last_pos, SEEK_SET);
+
+				if (result < 0)
+				{
+					SABA_INFO("seek failed.");
+				}
+				avcodec_flush_buffers(codec_context);
+				Mpegframeno = mpeg_last_pts_frameno;
+				//	Mpegframeno = animFrame - 2;
+				mpeg_frame_time = mpeg_last_frame_time;
+
+				prevframe = false;
+			}
+
+
+			AVFrame* frame = av_frame_alloc();
+			AVPacket packet = AVPacket();
+
+
+			//while (Mpegframeno < animFrame)
+			while (mpeg_frame_time < animTime)
+			{
+				mpeg_last_pos = format_context->pb->pos;
+				//mpeg_last_pts = -1;
+
+				if (av_read_frame(format_context, &packet) == 0)
+				{
+					if (packet.stream_index == video_stream->index)
+					{
+						if (avcodec_send_packet(codec_context, &packet) != 0)
+						{
+							SABA_INFO("avcodec_send_packet failed\n");
+						}
+
+						while (avcodec_receive_frame(codec_context, frame) == 0)
+						{
+							mpeg_frame_time = frame->pts * av_q2d(video_stream->time_base);
+
+							if (frame->key_frame == 1)
+							{
+								mpeg_last_pts = frame->pts;
+								mpeg_last_pts_frameno = Mpegframeno;
+								mpeg_last_frame_time = mpeg_frame_time;
+							}
+
+							//mpeg_best_effort_time = av_frame_get_best_effort_timestamp(frame) ;
+
+							//if (prevframe)
+							//{
+							//	// フレームの位置を特定する
+							//	Mpegframeno = mpeg_frame_time / mpeg_framerate;
+							//	prevframe = false;
+							//}
+
+							//AVRational result = av_guess_frame_rate(format_context, video_stream, frame);
+							//mpeg_framerate = av_q2d(result);
+							//SABA_INFO("flamerate {}", mpeg_framerate);
+
+							//Convert YUV->RGB
+							sws_scale(swsctx, frame->data
+								, frame->linesize, 0, codec_context->height
+								, dst_picture.data, dst_picture.linesize);
+
+							mpeg_coded_picture_number = frame->coded_picture_number;  // 順番ではこない
+							mpeg_display_picture_number = frame->display_picture_number;
+
+							if (m_dummyImageTex2 != 0)
+							{
+								glDeleteTextures(1, &m_dummyImageTex2);
+							}
+							m_dummyImageTex2 = m_dummyImageTex1;
+
+							glGenTextures(1, &m_dummyImageTex1);
+							glBindTexture(GL_TEXTURE_2D, m_dummyImageTex1);
+							glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+							glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+							glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+							glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, codec_context->width, codec_context->height, 0, GL_RGB, GL_UNSIGNED_BYTE, dst_picture.data[0]);
+							glBindTexture(GL_TEXTURE_2D, 0);
+
+							++Mpegframeno;
+							break;
+						}
+					}
+					av_packet_unref(&packet);
+					//break;
+				}
+				else
+				{
+					// no more flames?
+					break;
+				}
+			}
+
+			// サイズ計算と作画
+
+			//ImVec2 scsize = ImGui::GetWindowSize();
+			//ImVec2 imsize(scsize.x, scsize.y - ImGui::GetCursorPos().y);
+			//ImGui::Image((void*)(intptr_t)m_dummyImageTex1, scsize);
+			//ImGui::Image((void*)(intptr_t)m_dummyImageTex1, ImGui::GetContentRegionAvail());
+
+			ImVec2 imsize(ImGui::GetContentRegionAvail().x, codec_context->height * (ImGui::GetContentRegionAvail().x / codec_context->width));
+			if (codec_context->height * (ImGui::GetContentRegionAvail().x / codec_context->width) > ImGui::GetContentRegionAvail().y)
+			{
+				ImVec2 imsize2(codec_context->width * (ImGui::GetContentRegionAvail().y / codec_context->height), ImGui::GetContentRegionAvail().y);
+				imsize = imsize2;
+			}
+			if (b_view_mpeg_sm)
+			{
+				ImGui::Image((void*)(intptr_t)m_dummyImageTex1, imsize);
+			}
+
+			//ImVec2 imsize(codec_context->width, codec_context->height);
+			//ImGui::Image((void*)(intptr_t)m_dummyImageTex1, imsize);
+		}
+	}
+
+	void Viewer::DrawImage()
+	{
+		float width = 300;
+		float height = 250;
+		ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowPos(ImVec2(0, 100 + 20), ImGuiCond_FirstUseEver);
+		ImGui::Begin("Video");
+		ImGui::PushID("Video UI");
+
+		float animFrame = float(m_context.GetAnimationTime() * m_animCtrlEditFPS);
+		float animTime = float(m_context.GetAnimationTime());
+		ImGui::Text("Width:%d", imageWidth);
+		ImGui::SameLine();
+		ImGui::Text("Height:%d", imageHeight);
+
+		ImGui::Text("Mpeg Frame:%d/%ld", Mpegframeno, mpeg_numofframes);
+		ImGui::SameLine();
+		ImGui::Text("Framerate:%5.2f", mpeg_framerate);
+		ImGui::SameLine();
+		ImGui::Text("time:%f", mpeg_frame_time);
+
+		if (ImGui::Checkbox("View Video Image", &b_view_mpeg))
+		{
+			SaveIniAppInt(L"VIEW_MPEG", b_view_mpeg);
+		}
+		if (ImGui::Checkbox("View Video Image Small", &b_view_mpeg_sm))
+		{
+			SaveIniAppInt(L"VIEW_MPEG_SM", b_view_mpeg_sm);
+		}
+		
+
+		if (ImGui::SliderFloat("Video Scale", &mpeg_scale, 0.1f, 3.0f))
+		{
+			SaveIniAppDouble(L"MPEG_SCALE", mpeg_scale);
+		}
+		if (ImGui::SliderFloat("Video X", &mpeg_x, -10.f, 10.0f))
+		{
+			SaveIniAppDouble(L"MPEG_X", mpeg_x);
+		}
+		if (ImGui::SliderFloat("Video Y", &mpeg_y, -10.f, 10.0f))
+		{
+			SaveIniAppDouble(L"MPEG_Y", mpeg_y);
+		}
+		if (ImGui::SliderFloat("Video Z", &mpeg_z, -10.f, 10.0f))
+		{
+			SaveIniAppDouble(L"MPEG_Z", mpeg_z);
+		}
+
+		ImGui::Text("AniFrame:%f", animFrame);
+		ImGui::SameLine();
+		ImGui::Text("AniTime:%f", animTime);
+
+		if (b_view_mpeg)
+		{
+			ViewMpeg(animFrame, animTime, mpeg_push_init, mpeg_push_prev);
+		}
+
+		ImGui::PopID();
+		ImGui::End();
+	}
 }

@@ -157,6 +157,21 @@ namespace saba
 		}
 		return ext;
 	}
+	std::wstring PathUtil::GetExt(const std::wstring& path)
+	{
+		auto pos = path.find_last_of('.');
+		if (pos == std::wstring::npos)
+		{
+			return L"";
+		}
+
+		std::wstring ext = path.substr(pos + 1, path.size() - pos);
+		for (auto& ch : ext)
+		{
+			ch = (char)tolower(ch);
+		}
+		return ext;
+		}
 
 	std::string PathUtil::GetDelimiter()
 	{
