@@ -74,6 +74,10 @@
 #pragma comment(lib, "shlwapi.lib")
 #include "strconv.h"
 
+
+#define MPEG_DECORD_THRED_PROC_ENABLE		// defneすると MPEGデコードをスレッド化
+
+
 unsigned char framebuf[1920/8 * 1080 * 3];
 
 namespace saba
@@ -185,6 +189,8 @@ namespace saba
 		, mpeg_x(0.0f)
 		, mpeg_y(0.0f)
 		, mpeg_z(0.0f)
+		, m_enableMpegControl(true)
+		, m_mpegThreadExit(false)
 	{
 		if (!glfwInit())
 		{
@@ -372,8 +378,12 @@ namespace saba
 			}
 		}
 
+		m_mpegThread = std::thread([this]() { this->ViewMpegThread(); });
+
 		return true;
 	}
+
+	bool is_ready = false; // for spurious wakeup
 
 	void Viewer::Uninitislize()
 	{
@@ -386,6 +396,14 @@ namespace saba
 		ImGui::DestroyContext();
 
 		m_context.Uninitialize();
+
+		m_mpegThreadExit = true;
+		{
+			std::lock_guard<std::mutex> lock(mtx);
+			is_ready = true;
+		}
+		cv.notify_one();
+		m_mpegThread.join();
 	}
 
 	int Viewer::Run()
@@ -697,6 +715,12 @@ namespace saba
 		// 動画のイメージを作りたい
 		if(b_view_mpeg)
 		{
+			// 動画のイメージを作り終わるまで待つ
+			if (m_context.IsUIEnabled())
+			{
+				DrawUI2();
+			}
+
 			// m_dummyImageTex1
 			const auto world = glm::mat4(1.0);
 			const auto& view = m_context.GetCamera()->GetViewMatrix();
@@ -949,6 +973,7 @@ namespace saba
 				ImGui::MenuItem("Log", nullptr, &m_enableLogUI);
 				ImGui::MenuItem("Command", nullptr, &m_enableCommandUI);
 				ImGui::MenuItem("Control", nullptr, &m_enableCtrlUI);
+				ImGui::MenuItem("MpegControl", nullptr, &m_enableMpegControl);
 				ImGui::EndMenu();
 			}
 			if (ImGui::BeginMenu("Edit"))
@@ -1052,6 +1077,14 @@ namespace saba
 		DrawImage();					// Mpeg表示あり
 
 		DrawLightGuide();
+
+		// スレッド終了を待つ
+		ViewMpegWaitDone();
+	}
+
+	void Viewer::DrawUI2()
+	{
+
 	}
 
 	namespace
@@ -3091,8 +3124,9 @@ namespace saba
 	}
 
 
-	void Viewer::ViewMpeg(float animFrame,float animTime,bool resetTime, bool prevframe)
+	void Viewer::LoadMpegCheck()
 	{
+		//　ファイルローディング処理
 		if (LoadFfmpeg == false)
 		{
 			av_register_all();
@@ -3183,6 +3217,7 @@ namespace saba
 
 						Mpegframeno = -1;
 						mpeg_frame_time = -1;
+						glMpegframeno = -1;
 
 						imageWidth = codec_context->width;
 						imageHeight = codec_context->height;
@@ -3207,8 +3242,114 @@ namespace saba
 				LoadFfmpeg = false;
 				b_view_mpeg = false;
 			}
-		}
+		} // if (LoadFfmpeg == false)
 
+	}
+
+	bool is_ready_done = false; // for spurious wakeup
+
+	float animFrameth;
+	float animTimeth;
+	bool resetTimeth;
+	bool prevframeth;
+
+	void Viewer::ViewMpeg(float animFrame, float animTime, bool resetTime, bool prevframe)
+	{
+#ifdef MPEG_DECORD_THRED_PROC_ENABLE
+		animFrameth = animFrame;
+		animTimeth = animTime;
+		resetTimeth = resetTime;
+		prevframeth = prevframe;
+
+		//SABA_INFO("ViewMpeg() in");
+		{
+			std::lock_guard<std::mutex> lock(mtx);
+			is_ready = true;
+		}
+		cv.notify_one();
+		//SABA_INFO("ViewMpeg() out");
+#endif
+	}
+
+	void Viewer::ViewMpegWaitDone()
+	{
+		// 終わりを待ってみる
+		{
+			//SABA_INFO("ViewMpeg() in2");
+
+#ifdef MPEG_DECORD_THRED_PROC_ENABLE
+			std::unique_lock<std::mutex> uniq_lk_done(mtx_done); // ここでロックされる
+			cv_done.wait(uniq_lk_done, [] { return is_ready_done; });
+#endif
+
+
+			if (Mpegframeno != glMpegframeno)
+			{
+				if (m_dummyImageTex2 != 0)
+				{
+					glDeleteTextures(1, &m_dummyImageTex2);
+				}
+				m_dummyImageTex2 = m_dummyImageTex1;
+
+				glGenTextures(1, &m_dummyImageTex1);
+				glBindTexture(GL_TEXTURE_2D, m_dummyImageTex1);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, codec_context->width, codec_context->height, 0, GL_RGB, GL_UNSIGNED_BYTE, dst_picture.data[0]);
+				glBindTexture(GL_TEXTURE_2D, 0);
+
+				glMpegframeno = Mpegframeno;
+			}
+
+
+#ifdef MPEG_DECORD_THRED_PROC_ENABLE
+			is_ready_done = false;
+#endif
+
+			//SABA_INFO("ViewMpeg() out2");
+		}
+	}
+
+	void Viewer::ViewMpegThread()
+	{
+#ifdef MPEG_DECORD_THRED_PROC_ENABLE
+		//SABA_INFO("ViewMpegThread.");
+
+		while (true)
+		{
+			std::unique_lock<std::mutex> uniq_lk(mtx); // ここでロックされる
+			cv.wait(uniq_lk, [] { return is_ready; });
+			// 1. uniq_lkをアンロックする
+			// 2. 通知を受けるまでこのスレッドをブロックする
+			// 3. 通知を受けたらuniq_lkをロックする
+
+			if (m_mpegThreadExit)
+			{
+				return;
+			}
+
+			/* ここではuniq_lkはロックされたまま */
+			//SABA_INFO("ViewMpegThread started.");
+			
+			
+			ViewMpeg2(animFrameth, animTimeth, resetTimeth, prevframeth);
+			
+			is_ready = false;
+
+			// 終わった通知?
+			//SABA_INFO("ViewMpegThread end.");
+			{
+				std::lock_guard<std::mutex> lock_done(mtx_done);
+				is_ready_done = true;
+			}
+			cv_done.notify_one();
+		} // デストラクタでアンロックする
+#endif
+	}
+
+	void Viewer::ViewMpeg2(float animFrame, float animTime, bool resetTime, bool prevframe)
+	{
 		if (b_view_mpeg == true)
 		{
 			if (resetTime == true)
@@ -3221,6 +3362,7 @@ namespace saba
 				avcodec_flush_buffers(codec_context);
 				Mpegframeno = -1;
 				mpeg_frame_time = -1;
+				glMpegframeno = -1;
 			}
 
 			if (prevframe)
@@ -3298,19 +3440,21 @@ namespace saba
 							mpeg_coded_picture_number = frame->coded_picture_number;  // 順番ではこない
 							mpeg_display_picture_number = frame->display_picture_number;
 
-							if (m_dummyImageTex2 != 0)
-							{
-								glDeleteTextures(1, &m_dummyImageTex2);
-							}
-							m_dummyImageTex2 = m_dummyImageTex1;
+							// スレッド化対応で他の場所に移動
+							//if (m_dummyImageTex2 != 0)
+							//{
+							//	glDeleteTextures(1, &m_dummyImageTex2);
+							//}
+							//m_dummyImageTex2 = m_dummyImageTex1;
 
-							glGenTextures(1, &m_dummyImageTex1);
-							glBindTexture(GL_TEXTURE_2D, m_dummyImageTex1);
-							glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-							glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-							glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-							glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, codec_context->width, codec_context->height, 0, GL_RGB, GL_UNSIGNED_BYTE, dst_picture.data[0]);
-							glBindTexture(GL_TEXTURE_2D, 0);
+							//glGenTextures(1, &m_dummyImageTex1);
+							//glBindTexture(GL_TEXTURE_2D, m_dummyImageTex1);
+							//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+							//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+							//glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+							//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, codec_context->width, codec_context->height, 0, GL_RGB, GL_UNSIGNED_BYTE, dst_picture.data[0]);
+							//glBindTexture(GL_TEXTURE_2D, 0);
+							// スレッド化したときは上の処理は後でやる
 
 							++Mpegframeno;
 							break;
@@ -3325,7 +3469,14 @@ namespace saba
 					break;
 				}
 			}
+		}
+	}
 
+
+	void Viewer::DrawMpeg()
+	{
+		if (b_view_mpeg == true)
+		{
 			// サイズ計算と作画
 
 			//ImVec2 scsize = ImGui::GetWindowSize();
@@ -3351,11 +3502,16 @@ namespace saba
 
 	void Viewer::DrawImage()
 	{
+		if (!m_enableMpegControl)
+		{
+			return;
+		}
+
 		float width = 300;
 		float height = 250;
 		ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowPos(ImVec2(0, 100 + 20), ImGuiCond_FirstUseEver);
-		ImGui::Begin("Video");
+		ImGui::Begin("Video", &m_enableMpegControl);
 		ImGui::PushID("Video UI");
 
 		float animFrame = float(m_context.GetAnimationTime() * m_animCtrlEditFPS);
@@ -3403,7 +3559,13 @@ namespace saba
 
 		if (b_view_mpeg)
 		{
+			LoadMpegCheck();
+#ifdef MPEG_DECORD_THRED_PROC_ENABLE
 			ViewMpeg(animFrame, animTime, mpeg_push_init, mpeg_push_prev);
+#else
+			ViewMpeg2(animFrame, animTime, mpeg_push_init, mpeg_push_prev);
+#endif
+			DrawMpeg();															// ImguiのMpeg画像スレッド化すると、同期が取れなくなるかもしれないので先にする?
 		}
 
 		ImGui::PopID();

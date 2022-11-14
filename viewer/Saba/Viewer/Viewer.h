@@ -34,6 +34,9 @@
 
 
 #include <vector>
+#include <thread>
+#include <condition_variable>
+#include <mutex>
 
 extern "C" {
 #include <libavutil/imgutils.h>
@@ -163,6 +166,7 @@ namespace saba
 		void DrawMenuBar();
 		void DrawCustomMenu(CustomCommandMenuItem* parentItem);
 		void DrawUI();
+		void DrawUI2();
 		void DrawInfoUI();
 		void DrawLogUI();
 		void DrawCommandUI();
@@ -190,13 +194,28 @@ namespace saba
 		//void DrawVmd();
 		//std::vector<VMDFile> vmd_vect;
 		void DrawImage();
+		void DrawImage2();
 		int imageHeight;
 		int imageWidth;
 		GLuint	m_dummyImageTex1;
 		GLuint	m_dummyImageTex2;
 		void ViewMpeg(float animFrame, float animTime, bool resetTime, bool prevframe);
+		void ViewMpegWaitDone();
+		void ViewMpeg2(float animFrame, float animTime, bool resetTime, bool prevframe);
 		bool LoadFfmpeg;
 		bool LoadMpegfile(const std::string& filename);
+		bool m_enableMpegControl;
+		void LoadMpegCheck();
+		void DrawMpeg();
+
+		std::thread m_mpegThread;
+		bool m_mpegThreadExit;
+		void ViewMpegThread();
+		std::condition_variable cv;
+		std::mutex mtx;
+		std::condition_variable cv_done;
+		std::mutex mtx_done;
+
 
 		double mpeg_framerate;					// frame rate(streamより) 
 		int64_t mpeg_numofframes;				// frame数 (streamより)
@@ -211,6 +230,7 @@ namespace saba
 
 		double mpeg_frame_time;					// 計算からだしている動画上の時間(あってそう)
 		int Mpegframeno;						// カウントしているframe no
+		int glMpegframeno;
 
 		AVFormatContext* format_context;
 		AVStream* video_stream;
