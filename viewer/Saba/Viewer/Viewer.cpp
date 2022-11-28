@@ -160,7 +160,7 @@ namespace saba
 		, m_prevTime(0)
 		, m_modelNameID(1)
 		, m_enableInfoUI(true)
-		, m_enableMoreInfoUI(false)
+		, m_enableMoreInfoUI(true)
 		, m_enableLogUI(true)
 		, m_enableCommandUI(true)
 		, m_enableManip(false)
