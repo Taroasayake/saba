@@ -1,0 +1,180 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Base\File.cpp">
+      <Filter>Base</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Base\Log.cpp">
+      <Filter>Base</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Base\Path.cpp">
+      <Filter>Base</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Base\Singleton.cpp">
+      <Filter>Base</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Base\Time.cpp">
+      <Filter>Base</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Base\UnicodeUtil.cpp">
+      <Filter>Base</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\OBJ\OBJModel.cpp">
+      <Filter>Model\OBJ</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\OBJ\tinyobjloader.cpp">
+      <Filter>Model\OBJ</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\XFile\XFileModel.cpp">
+      <Filter>Model\XFile</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDIkSolver.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDMaterial.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDModel.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDMorph.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDNode.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDPhysics.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDCamera.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\PMDFile.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\PMDModel.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\PMXFile.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\PMXModel.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\SjisToUnicode.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\VMDAnimation.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\VMDCameraAnimation.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\VMDFile.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\VPDFile.cpp">
+      <Filter>Model\MMD</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Base\File.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Base\Log.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Base\Path.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Base\Singleton.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Base\Time.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Base\UnicodeUtil.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\OBJ\OBJModel.h">
+      <Filter>Model\OBJ</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\XFile\XFileModel.h">
+      <Filter>Model\XFile</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDFileString.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDIkSolver.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDMaterial.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDModel.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDMorph.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDNode.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDPhysics.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\MMDCamera.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\PMDFile.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\PMDModel.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\PMXFile.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\PMXModel.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\SjisToUnicode.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\VMDAnimation.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\VMDCameraAnimation.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\VMDAnimationCommon.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\VMDFile.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\src\Saba\Model\MMD\VPDFile.h">
+      <Filter>Model\MMD</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="E:\DATA\SRC\saba\src\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Base">
+      <UniqueIdentifier>{8E426C9C-12C3-3750-8836-F7411ABA68A5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Model">
+      <UniqueIdentifier>{4EC613A2-4684-3CC1-9EE3-FB11A476D0B6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Model\MMD">
+      <UniqueIdentifier>{C7BCB68F-29F1-3C58-B269-1B27E3246BC7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Model\OBJ">
+      <UniqueIdentifier>{F0D4A177-0749-32C5-B3B9-355DFB7DE90A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Model\XFile">
+      <UniqueIdentifier>{7807CF8F-A10C-32BF-B8E8-B59D3A2D28A6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

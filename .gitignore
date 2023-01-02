@@ -3,3 +3,14 @@ build
 /mmd2obj.dir
 /x64
 /saba_viewer.dir
+/CMakeFiles
+/.vs
+/viewer/SabaViewer.dir/Release
+/example/simple_mmd_viewer_dx11.dir/Release
+/example/simple_mmd_viewer_glfw.dir/Release
+/external/fcpp/fcpp.dir/Release
+/external/lua/lua.dir/Release
+/gtests/gtests.dir/Release
+/src/Saba.dir/Release
+
+CMakeFiles/CMakeOutput.log

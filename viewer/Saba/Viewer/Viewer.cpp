@@ -3274,6 +3274,7 @@ namespace saba
 	void Viewer::ViewMpegWaitDone()
 	{
 		// 終わりを待ってみる
+		if(b_view_mpeg)
 		{
 			//SABA_INFO("ViewMpeg() in2");
 

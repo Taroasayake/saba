@@ -1,0 +1,195 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\GLShaderUtil.cpp">
+      <Filter>GL</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\GLSLUtil.cpp">
+      <Filter>GL</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\GLTextureUtil.cpp">
+      <Filter>GL</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\OBJ\GLOBJModel.cpp">
+      <Filter>GL\Model\OBJ</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\OBJ\GLOBJModelDrawContext.cpp">
+      <Filter>GL\Model\OBJ</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\OBJ\GLOBJModelDrawer.cpp">
+      <Filter>GL\Model\OBJ</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\XFile\GLXFileModel.cpp">
+      <Filter>GL\Model\XFile</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\XFile\GLXFileModelDrawContext.cpp">
+      <Filter>GL\Model\XFile</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\XFile\GLXFileModelDrawer.cpp">
+      <Filter>GL\Model\XFile</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\MMD\GLMMDModel.cpp">
+      <Filter>GL\Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\MMD\GLMMDModelDrawContext.cpp">
+      <Filter>GL\Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\MMD\GLMMDModelDrawer.cpp">
+      <Filter>GL\Model\MMD</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\Camera.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\Light.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\Grid.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\ModelDrawer.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\Viewer.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\ViewerCommand.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\ViewerContext.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\CameraOverrider.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\VMDCameraOverrider.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\ShadowMap.cpp">
+      <Filter>Viewer</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\external\gl3w\src\gl3w.c">
+      <Filter>GL3W</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\external\imgui\src\imgui.cpp">
+      <Filter>IMGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\external\imgui\src\imgui_draw.cpp">
+      <Filter>IMGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\external\imgui\src\imgui_widgets.cpp">
+      <Filter>IMGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\external\imgui\src\imgui_impl_glfw.cpp">
+      <Filter>IMGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\external\imgui\src\imgui_impl_opengl3.cpp">
+      <Filter>IMGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\DATA\SRC\saba\external\imgui\src\ImGuizmo.cpp">
+      <Filter>IMGUI</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\GLObject.h">
+      <Filter>GL</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\GLShaderUtil.h">
+      <Filter>GL</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\GLSLUtil.h">
+      <Filter>GL</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\GLTextureUtil.h">
+      <Filter>GL</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\GLVertexUtil.h">
+      <Filter>GL</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\OBJ\GLOBJModel.h">
+      <Filter>GL\Model\OBJ</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\OBJ\GLOBJModelDrawContext.h">
+      <Filter>GL\Model\OBJ</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\OBJ\GLOBJModelDrawer.h">
+      <Filter>GL\Model\OBJ</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\XFile\GLXFileModel.h">
+      <Filter>GL\Model\XFile</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\XFile\GLXFileModelDrawContext.h">
+      <Filter>GL\Model\XFile</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\XFile\GLXFileModelDrawer.h">
+      <Filter>GL\Model\XFile</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\MMD\GLMMDModel.h">
+      <Filter>GL\Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\MMD\GLMMDModelDrawContext.h">
+      <Filter>GL\Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\GL\Model\MMD\GLMMDModelDrawer.h">
+      <Filter>GL\Model\MMD</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\Camera.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\Light.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\Grid.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\ModelDrawer.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\Viewer.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\ViewerCommand.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\ViewerContext.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\CameraOverrider.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\VMDCameraOverrider.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\DATA\SRC\saba\viewer\Saba\Viewer\ShadowMap.h">
+      <Filter>Viewer</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="E:\DATA\SRC\saba\viewer\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="GL">
+      <UniqueIdentifier>{672A988F-F926-3BEF-BF67-8791809BE6CA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GL3W">
+      <UniqueIdentifier>{253199CE-F9F8-361D-95C2-FAA4265A2358}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GL\Model">
+      <UniqueIdentifier>{C950B7B4-E996-301A-9986-DF7811EB050B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GL\Model\MMD">
+      <UniqueIdentifier>{3D5C571B-B543-36E0-A0A3-ACFC88C26820}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GL\Model\OBJ">
+      <UniqueIdentifier>{380D8FC6-0078-34DD-801A-8BF5C0E79284}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GL\Model\XFile">
+      <UniqueIdentifier>{129FF898-DECC-348B-8E74-0830629A1776}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="IMGUI">
+      <UniqueIdentifier>{8113017B-4D8F-3555-A4A7-E8F6EA63CD02}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Viewer">
+      <UniqueIdentifier>{E62DEB86-8EB9-307B-B1B7-F39A23BE2F3F}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
