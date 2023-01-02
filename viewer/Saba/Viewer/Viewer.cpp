@@ -344,13 +344,16 @@ namespace saba
 		mpeg_y = LoadIniAppDouble(L"MPEG_Y", 0.0);
 		mpeg_z = LoadIniAppDouble(L"MPEG_Z", 0.0);
 		mpeg_filename = LoadIniAppString(L"MPEG_FILE", NULL);
+		mpeg_filename_utf8 = wide_to_utf8(mpeg_filename);
 
 		pmx_filename = LoadIniAppString(L"PMX_FILE", NULL);
+		pmx_filename_utf8 = wide_to_utf8(pmx_filename);
 		if (pmx_filename != L"")
 		{
 			if (::PathFileExists(pmx_filename.c_str()) && !::PathIsDirectory(pmx_filename.c_str()))
 			{
-				std::string sjis_str = wide_to_utf8(pmx_filename);
+				//std::string sjis_str = wide_to_utf8(pmx_filename);
+				std::string sjis_str = pmx_filename_utf8;
 
 				InitializeAnimation();
 
@@ -367,11 +370,13 @@ namespace saba
 		}
 
 		vmd_filename = LoadIniAppString(L"VMD_FILE", NULL);
+		vmd_filename_utf8 = wide_to_utf8(vmd_filename);
 		if (vmd_filename != L"")
 		{
 			if (::PathFileExists(vmd_filename.c_str()) && !::PathIsDirectory(vmd_filename.c_str()))
 			{
-				std::string sjis_str = wide_to_utf8(vmd_filename);
+				//std::string sjis_str = wide_to_utf8(vmd_filename);
+				std::string sjis_str = vmd_filename_utf8;
 
 				InitializeAnimation();
 				LoadVMDFile(sjis_str);
@@ -1382,6 +1387,9 @@ namespace saba
 		ImGui::SetNextWindowPos(ImVec2(0, 100 + 20), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Control", &m_enableCtrlUI);
 
+		ImGui::TextWrapped(pmx_filename_utf8.c_str());
+		ImGui::TextWrapped(vmd_filename_utf8.c_str());
+
 		ImGui::PushID("Control UI");
 
 		if (ImGui::CollapsingHeader("Animation"))
@@ -2116,6 +2124,7 @@ namespace saba
 			else
 			{
 				pmx_filename = utf8_to_wide(filepath);
+				pmx_filename_utf8 = filepath;
 				SaveIniAppString(L"PMX_FILE", pmx_filename.c_str());
 			}
 		}
@@ -2129,6 +2138,7 @@ namespace saba
 			else
 			{
 				vmd_filename = utf8_to_wide(filepath);
+				vmd_filename_utf8 = filepath;
 				SaveIniAppString(L"VMD_FILE", vmd_filename.c_str());
 			}
 		}
@@ -2142,6 +2152,7 @@ namespace saba
 			else
 			{
 				pmx_filename = utf8_to_wide(filepath);
+				pmx_filename_utf8 = filepath;
 				SaveIniAppString(L"PMX_FILE", pmx_filename.c_str());
 			}
 		}
@@ -3112,6 +3123,7 @@ namespace saba
 		//mpeg_filename = convf;
 
 		mpeg_filename = utf8_to_wide(filename);
+		mpeg_filename_utf8 = filename;
 
 		SaveIniAppString(L"MPEG_FILE", mpeg_filename.c_str());
 		LoadFfmpeg = false;
@@ -3138,11 +3150,8 @@ namespace saba
 				if (::PathFileExists(mpeg_filename.c_str()) && !::PathIsDirectory(mpeg_filename.c_str()))
 				{
 					// 指定されたパスにファイルが存在、かつディレクトリでない
-					//char input_path[2048];
-					//int length = wcstombs(input_path, mpeg_filename.c_str(), mpeg_filename.length());
-					//input_path[length] = 0;
-					//std::string sjis_str = wide_to_sjis(mpeg_filename);
-					std::string sjis_str = wide_to_utf8(mpeg_filename);
+					//std::string sjis_str = wide_to_utf8(mpeg_filename);
+					std::string sjis_str = mpeg_filename_utf8;
 
 					try
 					{
@@ -3514,6 +3523,8 @@ namespace saba
 		ImGui::SetNextWindowPos(ImVec2(0, 100 + 20), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Video", &m_enableMpegControl);
 		ImGui::PushID("Video UI");
+		
+		ImGui::TextWrapped(mpeg_filename_utf8.c_str());
 
 		float animFrame = float(m_context.GetAnimationTime() * m_animCtrlEditFPS);
 		float animTime = float(m_context.GetAnimationTime());

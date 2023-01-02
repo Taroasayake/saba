@@ -247,9 +247,12 @@ namespace saba
 		float mpeg_y;
 		float mpeg_z;
 		std::wstring mpeg_filename;
+		std::string mpeg_filename_utf8;
 
 		std::wstring pmx_filename;
+		std::string pmx_filename_utf8;
 		std::wstring vmd_filename;
+		std::string vmd_filename_utf8;
 
 		bool mpeg_push_init;
 		bool mpeg_push_prev;
