@@ -38,12 +38,12 @@
 #include <condition_variable>
 #include <mutex>
 
-extern "C" {
-#include <libavutil/imgutils.h>
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
-}
+//extern "C" {
+//#include <libavutil/imgutils.h>
+//#include <libavcodec/avcodec.h>
+//#include <libavformat/avformat.h>
+//#include <libswscale/swscale.h>
+//}
 
 namespace saba
 {
@@ -193,12 +193,12 @@ namespace saba
 		//void DrawModel();
 		//void DrawVmd();
 		//std::vector<VMDFile> vmd_vect;
-		void DrawImage();
-		void DrawImage2();
+		void DrawVideoImage();
+		//void DrawImage2();
 		int imageHeight;
 		int imageWidth;
-		GLuint	m_dummyImageTex1;
-		GLuint	m_dummyImageTex2;
+		//GLuint	m_dummyImageTex1;
+		//GLuint	m_dummyImageTex2;
 		void ViewMpeg(float animFrame, float animTime, bool resetTime, bool prevframe);
 		void ViewMpegWaitDone();
 		void ViewMpeg2(float animFrame, float animTime, bool resetTime, bool prevframe);
@@ -208,13 +208,13 @@ namespace saba
 		void LoadMpegCheck();
 		void DrawMpeg();
 
-		std::thread m_mpegThread;
-		bool m_mpegThreadExit;
+		//std::thread m_mpegThread;
+		//bool m_mpegThreadExit;
 		void ViewMpegThread();
-		std::condition_variable cv;
-		std::mutex mtx;
-		std::condition_variable cv_done;
-		std::mutex mtx_done;
+		//std::condition_variable cv;
+		//std::mutex mtx;
+		//std::condition_variable cv_done;
+		//std::mutex mtx_done;
 
 
 		double mpeg_framerate;					// frame rate(streamより) 
@@ -232,13 +232,13 @@ namespace saba
 		int Mpegframeno;						// カウントしているframe no
 		int glMpegframeno;
 
-		AVFormatContext* format_context;
-		AVStream* video_stream;
-		int stream_index;
-		AVCodec* codec;
-		AVCodecContext* codec_context;
-		struct SwsContext* swsctx;
-		AVPicture dst_picture;
+		//AVFormatContext* format_context;
+		//AVStream* video_stream;
+		//int stream_index;
+		//AVCodec* codec;
+		//AVCodecContext* codec_context;
+		//struct SwsContext* swsctx;
+		//AVPicture dst_picture;
 
 		bool b_view_mpeg;
 		bool b_view_mpeg_sm;

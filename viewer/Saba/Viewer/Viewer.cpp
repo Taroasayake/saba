@@ -58,6 +58,7 @@
 
 #include <cstdio>
 #include <vector>
+//#include <format>		// C++20から
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -74,6 +75,7 @@
 #pragma comment(lib, "shlwapi.lib")
 #include "strconv.h"
 
+#include "ffplay.h"
 
 #define MPEG_DECORD_THRED_PROC_ENABLE		// defneすると MPEGデコードをスレッド化
 
@@ -190,7 +192,7 @@ namespace saba
 		, mpeg_y(0.0f)
 		, mpeg_z(0.0f)
 		, m_enableMpegControl(true)
-		, m_mpegThreadExit(false)
+		//, m_mpegThreadExit(false)
 	{
 		if (!glfwInit())
 		{
@@ -199,8 +201,8 @@ namespace saba
 		m_glfwInitialized = true;
 
 
-		m_dummyImageTex1 = 0;		// shibata
-		m_dummyImageTex2 = 0;		// shibata
+		//m_dummyImageTex1 = 0;		// shibata
+		//m_dummyImageTex2 = 0;		// shibata
 		LoadFfmpeg = false;			// shibata
 	}
 
@@ -383,7 +385,13 @@ namespace saba
 			}
 		}
 
-		m_mpegThread = std::thread([this]() { this->ViewMpegThread(); });
+		//m_mpegThread = std::thread([this]() { this->ViewMpegThread(); });
+
+		int ffplayresult = ffplay_main1(0, NULL);
+
+		ffplayresult = ffplay_main2();
+
+		ffplayresult = ffplay_main3(0,0, 640, 480);
 
 		return true;
 	}
@@ -402,13 +410,13 @@ namespace saba
 
 		m_context.Uninitialize();
 
-		m_mpegThreadExit = true;
-		{
-			std::lock_guard<std::mutex> lock(mtx);
-			is_ready = true;
-		}
-		cv.notify_one();
-		m_mpegThread.join();
+		//m_mpegThreadExit = true;
+		//{
+		//	std::lock_guard<std::mutex> lock(mtx);
+		//	is_ready = true;
+		//}
+		//cv.notify_one();
+		//m_mpegThread.join();
 	}
 
 	int Viewer::Run()
@@ -473,6 +481,19 @@ namespace saba
 			glfwGetWindowSize(m_window, &windowW, &windowH);
 			m_context.SetWindowSize(windowW, windowH);
 
+
+
+			ffvideo_pollEvent();
+
+			// Video Rendering
+			int result = changeVideoFrame();
+			if (result < 0)
+			{
+				printf("ffmpeg error 4\n");
+				return result;
+			}
+
+
 			if (m_context.IsUIEnabled())
 			{
 				DrawMenuBar();
@@ -494,6 +515,7 @@ namespace saba
 
 			glfwSwapBuffers(m_window);
 			glfwPollEvents();
+
 
 			if (windowW != old_x_size)
 			{
@@ -726,17 +748,21 @@ namespace saba
 				DrawUI2();
 			}
 
-			// m_dummyImageTex1
-			const auto world = glm::mat4(1.0);
-			const auto& view = m_context.GetCamera()->GetViewMatrix();
-			const auto& proj = m_context.GetCamera()->GetProjectionMatrix();
-			const auto wv = view * world;
-			const auto wvp = proj * view * world;
+			GLuint	m_dummyImageTex1 = GetVideoTexId();
+			if (m_dummyImageTex1 != 0)
+			{
+				// m_dummyImageTex1
+				const auto world = glm::mat4(1.0);
+				const auto& view = m_context.GetCamera()->GetViewMatrix();
+				const auto& proj = m_context.GetCamera()->GetProjectionMatrix();
+				const auto wv = view * world;
+				const auto wvp = proj * view * world;
 
-			glm::mat4 t = glm::translate(wvp, glm::vec3(0.f, 0.f, -10.f));
+				glm::mat4 t = glm::translate(wvp, glm::vec3(0.f, 0.f, -10.f));
 
-			m_backImage.SetWVPMatrix(t);
-			m_backImage.Draw(m_dummyImageTex1, mpeg_scale, mpeg_x, mpeg_y, mpeg_z);
+				m_backImage.SetWVPMatrix(t);
+				m_backImage.Draw(m_dummyImageTex1, mpeg_scale, mpeg_x, mpeg_y, mpeg_z);
+			}
 		}
 
 
@@ -1079,7 +1105,7 @@ namespace saba
 		}
 		DrawCtrlUI();					// Control Buttonがある
 
-		DrawImage();					// Mpeg表示あり
+		DrawVideoImage();				// Mpeg表示あり
 
 		DrawLightGuide();
 
@@ -1547,13 +1573,22 @@ namespace saba
 			if (ImGui::Button("Stop"))
 			{
 				m_context.SetPlayMode(ViewerContext::PlayMode::Stop);
+
+				ffplay_pause();
 			}
 		}
 		else
 		{
 			if (ImGui::Button("Play"))
 			{
+				double animTime = m_context.GetAnimationTime();
+				ffplay_seekpos(animTime);
+
+				//::Sleep(50);
+
 				m_context.SetPlayMode(ViewerContext::PlayMode::PlayStart);
+
+				ffplay_pause();
 			}
 		}
 		if (ImGui::Button("Next Frame"))
@@ -1575,6 +1610,8 @@ namespace saba
 		{
 			InitializeAnimation();
 			mpeg_push_init = true;
+
+			ffplay_seekpos(0.);
 		}
 		if (ImGui::Button("Clear Animation"))
 		{
@@ -3141,116 +3178,126 @@ namespace saba
 		//　ファイルローディング処理
 		if (LoadFfmpeg == false)
 		{
-			av_register_all();
-
-			//const char* input_path = "E:\\DATA\\SRC\\MMD\\結果\\onegai2.mp4";
-			//const char* input_path = "E:\\TEMP\\Videos\\GoodVideo\\Twenty-Five.mp4";
-			if (mpeg_filename != L"")
+			std::string f = wide_to_utf8(mpeg_filename.c_str());
+			int videoresult = changeVideo(f.c_str());
+			if (videoresult != 0)
 			{
-				if (::PathFileExists(mpeg_filename.c_str()) && !::PathIsDirectory(mpeg_filename.c_str()))
-				{
-					// 指定されたパスにファイルが存在、かつディレクトリでない
-					//std::string sjis_str = wide_to_utf8(mpeg_filename);
-					std::string sjis_str = mpeg_filename_utf8;
-
-					try
-					{
-						SABA_INFO("Openning mpeg file. {}", sjis_str.c_str());
-						format_context = nullptr;
-						if (avformat_open_input(&format_context, sjis_str.c_str(), nullptr, nullptr) != 0) {
-							SABA_INFO("avformat_open_input failed\n");
-						}
-
-						if (avformat_find_stream_info(format_context, nullptr) < 0) {
-							SABA_INFO("avformat_find_stream_info failed\n");
-						}
-
-						video_stream = nullptr;
-						for (int i = 0; i < (int)format_context->nb_streams; ++i) {
-							if (format_context->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-								video_stream = format_context->streams[i];
-								stream_index = i;
-								break;
-							}
-						}
-						if (video_stream == nullptr) {
-							SABA_INFO("No video stream ...\n");
-						}
-
-						mpeg_framerate = av_q2d(video_stream->avg_frame_rate);
-						mpeg_numofframes = video_stream->nb_frames;
-
-						/* find decoder for the stream */
-						if (video_stream->codecpar->codec_id == AV_CODEC_ID_H264)
-						{
-							codec = avcodec_find_decoder_by_name("h264_cuvid");
-						}
-						else if (video_stream->codecpar->codec_id == AV_CODEC_ID_HEVC)
-						{
-							codec = avcodec_find_decoder_by_name("hevc_cuvid");
-						}
-						else
-						{
-							codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
-						}
-
-						//codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
-
-						if (codec == nullptr) {
-							SABA_INFO("No supported decoder ...\n");
-						}
-
-						codec_context = avcodec_alloc_context3(codec);
-						//codec_context->pix_fmt = AV_PIX_FMT_GBRAP;
-
-						if (codec_context == nullptr) {
-							SABA_INFO("avcodec_alloc_context3 failed\n");
-						}
-
-						if (avcodec_parameters_to_context(codec_context, video_stream->codecpar) < 0) {
-							SABA_INFO("avcodec_parameters_to_context failed\n");
-						}
-
-						if (avcodec_open2(codec_context, codec, nullptr) != 0) {
-							SABA_INFO("avcodec_open2 failed\n");
-						}
-
-						swsctx = sws_getContext(
-							codec_context->width, codec_context->height, codec_context->pix_fmt,
-							codec_context->width, codec_context->height, AV_PIX_FMT_RGB24,
-							SWS_BICUBIC, 0, 0, 0);
-
-						SABA_INFO("mpeg {} x {}", codec_context->width, codec_context->height);
-
-						avpicture_alloc(&dst_picture, AV_PIX_FMT_RGB24, codec_context->width, codec_context->height);
-
-						Mpegframeno = -1;
-						mpeg_frame_time = -1;
-						glMpegframeno = -1;
-
-						imageWidth = codec_context->width;
-						imageHeight = codec_context->height;
-
-						LoadFfmpeg = true;
-					}
-					catch (...)
-					{
-						SABA_INFO("mpeg file load error.");
-						LoadFfmpeg = false;
-						b_view_mpeg = false;
-					}
-				}
-				else
-				{
-					LoadFfmpeg = false;
-					b_view_mpeg = false;
-				}
+				LoadFfmpeg = true;
 			}
-			else
-			{
-				LoadFfmpeg = false;
-				b_view_mpeg = false;
-			}
+
+
+
+
+		//	av_register_all();
+
+		//	//const char* input_path = "E:\\DATA\\SRC\\MMD\\結果\\onegai2.mp4";
+		//	//const char* input_path = "E:\\TEMP\\Videos\\GoodVideo\\Twenty-Five.mp4";
+		//	if (mpeg_filename != L"")
+		//	{
+		//		if (::PathFileExists(mpeg_filename.c_str()) && !::PathIsDirectory(mpeg_filename.c_str()))
+		//		{
+		//			// 指定されたパスにファイルが存在、かつディレクトリでない
+		//			//std::string sjis_str = wide_to_utf8(mpeg_filename);
+		//			std::string sjis_str = mpeg_filename_utf8;
+
+		//			try
+		//			{
+		//				SABA_INFO("Openning mpeg file. {}", sjis_str.c_str());
+		//				format_context = nullptr;
+		//				if (avformat_open_input(&format_context, sjis_str.c_str(), nullptr, nullptr) != 0) {
+		//					SABA_INFO("avformat_open_input failed\n");
+		//				}
+
+		//				if (avformat_find_stream_info(format_context, nullptr) < 0) {
+		//					SABA_INFO("avformat_find_stream_info failed\n");
+		//				}
+
+		//				video_stream = nullptr;
+		//				for (int i = 0; i < (int)format_context->nb_streams; ++i) {
+		//					if (format_context->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+		//						video_stream = format_context->streams[i];
+		//						stream_index = i;
+		//						break;
+		//					}
+		//				}
+		//				if (video_stream == nullptr) {
+		//					SABA_INFO("No video stream ...\n");
+		//				}
+
+		//				mpeg_framerate = av_q2d(video_stream->avg_frame_rate);
+		//				mpeg_numofframes = video_stream->nb_frames;
+
+		//				/* find decoder for the stream */
+		//				if (video_stream->codecpar->codec_id == AV_CODEC_ID_H264)
+		//				{
+		//					codec = avcodec_find_decoder_by_name("h264_cuvid");
+		//				}
+		//				else if (video_stream->codecpar->codec_id == AV_CODEC_ID_HEVC)
+		//				{
+		//					codec = avcodec_find_decoder_by_name("hevc_cuvid");
+		//				}
+		//				else
+		//				{
+		//					codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
+		//				}
+
+		//				//codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
+
+		//				if (codec == nullptr) {
+		//					SABA_INFO("No supported decoder ...\n");
+		//				}
+
+		//				codec_context = avcodec_alloc_context3(codec);
+		//				//codec_context->pix_fmt = AV_PIX_FMT_GBRAP;
+
+		//				if (codec_context == nullptr) {
+		//					SABA_INFO("avcodec_alloc_context3 failed\n");
+		//				}
+
+		//				if (avcodec_parameters_to_context(codec_context, video_stream->codecpar) < 0) {
+		//					SABA_INFO("avcodec_parameters_to_context failed\n");
+		//				}
+
+		//				if (avcodec_open2(codec_context, codec, nullptr) != 0) {
+		//					SABA_INFO("avcodec_open2 failed\n");
+		//				}
+
+		//				swsctx = sws_getContext(
+		//					codec_context->width, codec_context->height, codec_context->pix_fmt,
+		//					codec_context->width, codec_context->height, AV_PIX_FMT_RGB24,
+		//					SWS_BICUBIC, 0, 0, 0);
+
+		//				SABA_INFO("mpeg {} x {}", codec_context->width, codec_context->height);
+
+		//				avpicture_alloc(&dst_picture, AV_PIX_FMT_RGB24, codec_context->width, codec_context->height);
+
+		//				Mpegframeno = -1;
+		//				mpeg_frame_time = -1;
+		//				glMpegframeno = -1;
+
+		//				imageWidth = codec_context->width;
+		//				imageHeight = codec_context->height;
+
+		//				LoadFfmpeg = true;
+		//			}
+		//			catch (...)
+		//			{
+		//				SABA_INFO("mpeg file load error.");
+		//				LoadFfmpeg = false;
+		//				b_view_mpeg = false;
+		//			}
+		//		}
+		//		else
+		//		{
+		//			LoadFfmpeg = false;
+		//			b_view_mpeg = false;
+		//		}
+		//	}
+		//	else
+		//	{
+		//		LoadFfmpeg = false;
+		//		b_view_mpeg = false;
+		//	}
 		} // if (LoadFfmpeg == false)
 
 	}
@@ -3264,221 +3311,221 @@ namespace saba
 
 	void Viewer::ViewMpeg(float animFrame, float animTime, bool resetTime, bool prevframe)
 	{
-#ifdef MPEG_DECORD_THRED_PROC_ENABLE
-		animFrameth = animFrame;
-		animTimeth = animTime;
-		resetTimeth = resetTime;
-		prevframeth = prevframe;
-
-		//SABA_INFO("ViewMpeg() in");
-		{
-			std::lock_guard<std::mutex> lock(mtx);
-			is_ready = true;
-		}
-		cv.notify_one();
-		//SABA_INFO("ViewMpeg() out");
-#endif
+//#ifdef MPEG_DECORD_THRED_PROC_ENABLE
+//		animFrameth = animFrame;
+//		animTimeth = animTime;
+//		resetTimeth = resetTime;
+//		prevframeth = prevframe;
+//
+//		//SABA_INFO("ViewMpeg() in");
+//		{
+//			std::lock_guard<std::mutex> lock(mtx);
+//			is_ready = true;
+//		}
+//		cv.notify_one();
+//		//SABA_INFO("ViewMpeg() out");
+//#endif
 	}
 
 	void Viewer::ViewMpegWaitDone()
 	{
-		// 終わりを待ってみる
-		if(b_view_mpeg)
-		{
-			//SABA_INFO("ViewMpeg() in2");
-
-#ifdef MPEG_DECORD_THRED_PROC_ENABLE
-			std::unique_lock<std::mutex> uniq_lk_done(mtx_done); // ここでロックされる
-			cv_done.wait(uniq_lk_done, [] { return is_ready_done; });
-#endif
-
-
-			if (Mpegframeno != glMpegframeno)
-			{
-				if (m_dummyImageTex2 != 0)
-				{
-					glDeleteTextures(1, &m_dummyImageTex2);
-				}
-				m_dummyImageTex2 = m_dummyImageTex1;
-
-				glGenTextures(1, &m_dummyImageTex1);
-				glBindTexture(GL_TEXTURE_2D, m_dummyImageTex1);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, codec_context->width, codec_context->height, 0, GL_RGB, GL_UNSIGNED_BYTE, dst_picture.data[0]);
-				glBindTexture(GL_TEXTURE_2D, 0);
-
-				glMpegframeno = Mpegframeno;
-			}
-
-
-#ifdef MPEG_DECORD_THRED_PROC_ENABLE
-			is_ready_done = false;
-#endif
-
-			//SABA_INFO("ViewMpeg() out2");
-		}
+//		// 終わりを待ってみる
+//		if(b_view_mpeg)
+//		{
+//			//SABA_INFO("ViewMpeg() in2");
+//
+//#ifdef MPEG_DECORD_THRED_PROC_ENABLE
+//			std::unique_lock<std::mutex> uniq_lk_done(mtx_done); // ここでロックされる
+//			cv_done.wait(uniq_lk_done, [] { return is_ready_done; });
+//#endif
+//
+//
+//			if (Mpegframeno != glMpegframeno)
+//			{
+//				if (m_dummyImageTex2 != 0)
+//				{
+//					glDeleteTextures(1, &m_dummyImageTex2);
+//				}
+//				m_dummyImageTex2 = m_dummyImageTex1;
+//
+//				glGenTextures(1, &m_dummyImageTex1);
+//				glBindTexture(GL_TEXTURE_2D, m_dummyImageTex1);
+//				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+//				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//				glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+//				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, codec_context->width, codec_context->height, 0, GL_RGB, GL_UNSIGNED_BYTE, dst_picture.data[0]);
+//				glBindTexture(GL_TEXTURE_2D, 0);
+//
+//				glMpegframeno = Mpegframeno;
+//			}
+//
+//
+//#ifdef MPEG_DECORD_THRED_PROC_ENABLE
+//			is_ready_done = false;
+//#endif
+//
+//			//SABA_INFO("ViewMpeg() out2");
+//		}
 	}
 
 	void Viewer::ViewMpegThread()
 	{
-#ifdef MPEG_DECORD_THRED_PROC_ENABLE
-		//SABA_INFO("ViewMpegThread.");
-
-		while (true)
-		{
-			std::unique_lock<std::mutex> uniq_lk(mtx); // ここでロックされる
-			cv.wait(uniq_lk, [] { return is_ready; });
-			// 1. uniq_lkをアンロックする
-			// 2. 通知を受けるまでこのスレッドをブロックする
-			// 3. 通知を受けたらuniq_lkをロックする
-
-			if (m_mpegThreadExit)
-			{
-				return;
-			}
-
-			/* ここではuniq_lkはロックされたまま */
-			//SABA_INFO("ViewMpegThread started.");
-			
-			
-			ViewMpeg2(animFrameth, animTimeth, resetTimeth, prevframeth);
-			
-			is_ready = false;
-
-			// 終わった通知?
-			//SABA_INFO("ViewMpegThread end.");
-			{
-				std::lock_guard<std::mutex> lock_done(mtx_done);
-				is_ready_done = true;
-			}
-			cv_done.notify_one();
-		} // デストラクタでアンロックする
-#endif
+//#ifdef MPEG_DECORD_THRED_PROC_ENABLE
+//		//SABA_INFO("ViewMpegThread.");
+//
+//		while (true)
+//		{
+//			std::unique_lock<std::mutex> uniq_lk(mtx); // ここでロックされる
+//			cv.wait(uniq_lk, [] { return is_ready; });
+//			// 1. uniq_lkをアンロックする
+//			// 2. 通知を受けるまでこのスレッドをブロックする
+//			// 3. 通知を受けたらuniq_lkをロックする
+//
+//			if (m_mpegThreadExit)
+//			{
+//				return;
+//			}
+//
+//			/* ここではuniq_lkはロックされたまま */
+//			//SABA_INFO("ViewMpegThread started.");
+//			
+//			
+//			ViewMpeg2(animFrameth, animTimeth, resetTimeth, prevframeth);
+//			
+//			is_ready = false;
+//
+//			// 終わった通知?
+//			//SABA_INFO("ViewMpegThread end.");
+//			{
+//				std::lock_guard<std::mutex> lock_done(mtx_done);
+//				is_ready_done = true;
+//			}
+//			cv_done.notify_one();
+//		} // デストラクタでアンロックする
+//#endif
 	}
 
 	void Viewer::ViewMpeg2(float animFrame, float animTime, bool resetTime, bool prevframe)
 	{
 		if (b_view_mpeg == true)
 		{
-			if (resetTime == true)
-			{
-				int result = av_seek_frame(format_context, stream_index, 0, AVSEEK_FLAG_BACKWARD);
-				if (result < 0)
-				{
-					SABA_INFO("seek failed.");
-				}
-				avcodec_flush_buffers(codec_context);
-				Mpegframeno = -1;
-				mpeg_frame_time = -1;
-				glMpegframeno = -1;
-			}
+			//if (resetTime == true)
+			//{
+			//	int result = av_seek_frame(format_context, stream_index, 0, AVSEEK_FLAG_BACKWARD);
+			//	if (result < 0)
+			//	{
+			//		SABA_INFO("seek failed.");
+			//	}
+			//	avcodec_flush_buffers(codec_context);
+			//	Mpegframeno = -1;
+			//	mpeg_frame_time = -1;
+			//	glMpegframeno = -1;
+			//}
 
-			if (prevframe)
-			{
-				// フレームが戻った?
-				//int result = av_seek_frame(format_context, stream_index, animTime / av_q2d(video_stream->time_base), AVSEEK_FLAG_BACKWARD);
-				//int64_t pos = mpeg_last_pts * av_q2d(video_stream->time_base);
-				//int64_t pos = animTime * av_q2d(video_stream->time_base);
-				int64_t pos = mpeg_last_pts;
-				int result = av_seek_frame(format_context, stream_index, pos, AVSEEK_FLAG_ANY);
-				//int result = av_seek_frame(format_context, stream_index, animFrame, AVSEEK_FLAG_FRAME);
-				//int result = avio_seek(format_context->pb, mpeg_last_pos, SEEK_SET);
+			//if (prevframe)
+			//{
+			//	// フレームが戻った?
+			//	//int result = av_seek_frame(format_context, stream_index, animTime / av_q2d(video_stream->time_base), AVSEEK_FLAG_BACKWARD);
+			//	//int64_t pos = mpeg_last_pts * av_q2d(video_stream->time_base);
+			//	//int64_t pos = animTime * av_q2d(video_stream->time_base);
+			//	int64_t pos = mpeg_last_pts;
+			//	int result = av_seek_frame(format_context, stream_index, pos, AVSEEK_FLAG_ANY);
+			//	//int result = av_seek_frame(format_context, stream_index, animFrame, AVSEEK_FLAG_FRAME);
+			//	//int result = avio_seek(format_context->pb, mpeg_last_pos, SEEK_SET);
 
-				if (result < 0)
-				{
-					SABA_INFO("seek failed.");
-				}
-				avcodec_flush_buffers(codec_context);
-				Mpegframeno = mpeg_last_pts_frameno;
-				//	Mpegframeno = animFrame - 2;
-				mpeg_frame_time = mpeg_last_frame_time;
+			//	if (result < 0)
+			//	{
+			//		SABA_INFO("seek failed.");
+			//	}
+			//	avcodec_flush_buffers(codec_context);
+			//	Mpegframeno = mpeg_last_pts_frameno;
+			//	//	Mpegframeno = animFrame - 2;
+			//	mpeg_frame_time = mpeg_last_frame_time;
 
-				prevframe = false;
-			}
-
-
-			AVFrame* frame = av_frame_alloc();
-			AVPacket packet = AVPacket();
+			//	prevframe = false;
+			//}
 
 
-			//while (Mpegframeno < animFrame)
-			while (mpeg_frame_time < animTime)
-			{
-				mpeg_last_pos = format_context->pb->pos;
-				//mpeg_last_pts = -1;
+			//AVFrame* frame = av_frame_alloc();
+			//AVPacket packet = AVPacket();
 
-				if (av_read_frame(format_context, &packet) == 0)
-				{
-					if (packet.stream_index == video_stream->index)
-					{
-						if (avcodec_send_packet(codec_context, &packet) != 0)
-						{
-							SABA_INFO("avcodec_send_packet failed\n");
-						}
 
-						while (avcodec_receive_frame(codec_context, frame) == 0)
-						{
-							mpeg_frame_time = frame->pts * av_q2d(video_stream->time_base);
+			////while (Mpegframeno < animFrame)
+			//while (mpeg_frame_time < animTime)
+			//{
+			//	mpeg_last_pos = format_context->pb->pos;
+			//	//mpeg_last_pts = -1;
 
-							if (frame->key_frame == 1)
-							{
-								mpeg_last_pts = frame->pts;
-								mpeg_last_pts_frameno = Mpegframeno;
-								mpeg_last_frame_time = mpeg_frame_time;
-							}
+			//	if (av_read_frame(format_context, &packet) == 0)
+			//	{
+			//		if (packet.stream_index == video_stream->index)
+			//		{
+			//			if (avcodec_send_packet(codec_context, &packet) != 0)
+			//			{
+			//				SABA_INFO("avcodec_send_packet failed\n");
+			//			}
 
-							//mpeg_best_effort_time = av_frame_get_best_effort_timestamp(frame) ;
+			//			while (avcodec_receive_frame(codec_context, frame) == 0)
+			//			{
+			//				mpeg_frame_time = frame->pts * av_q2d(video_stream->time_base);
 
-							//if (prevframe)
-							//{
-							//	// フレームの位置を特定する
-							//	Mpegframeno = mpeg_frame_time / mpeg_framerate;
-							//	prevframe = false;
-							//}
+			//				if (frame->key_frame == 1)
+			//				{
+			//					mpeg_last_pts = frame->pts;
+			//					mpeg_last_pts_frameno = Mpegframeno;
+			//					mpeg_last_frame_time = mpeg_frame_time;
+			//				}
 
-							//AVRational result = av_guess_frame_rate(format_context, video_stream, frame);
-							//mpeg_framerate = av_q2d(result);
-							//SABA_INFO("flamerate {}", mpeg_framerate);
+			//				//mpeg_best_effort_time = av_frame_get_best_effort_timestamp(frame) ;
 
-							//Convert YUV->RGB
-							sws_scale(swsctx, frame->data
-								, frame->linesize, 0, codec_context->height
-								, dst_picture.data, dst_picture.linesize);
+			//				//if (prevframe)
+			//				//{
+			//				//	// フレームの位置を特定する
+			//				//	Mpegframeno = mpeg_frame_time / mpeg_framerate;
+			//				//	prevframe = false;
+			//				//}
 
-							mpeg_coded_picture_number = frame->coded_picture_number;  // 順番ではこない
-							mpeg_display_picture_number = frame->display_picture_number;
+			//				//AVRational result = av_guess_frame_rate(format_context, video_stream, frame);
+			//				//mpeg_framerate = av_q2d(result);
+			//				//SABA_INFO("flamerate {}", mpeg_framerate);
 
-							// スレッド化対応で他の場所に移動
-							//if (m_dummyImageTex2 != 0)
-							//{
-							//	glDeleteTextures(1, &m_dummyImageTex2);
-							//}
-							//m_dummyImageTex2 = m_dummyImageTex1;
+			//				//Convert YUV->RGB
+			//				sws_scale(swsctx, frame->data
+			//					, frame->linesize, 0, codec_context->height
+			//					, dst_picture.data, dst_picture.linesize);
 
-							//glGenTextures(1, &m_dummyImageTex1);
-							//glBindTexture(GL_TEXTURE_2D, m_dummyImageTex1);
-							//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-							//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-							//glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-							//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, codec_context->width, codec_context->height, 0, GL_RGB, GL_UNSIGNED_BYTE, dst_picture.data[0]);
-							//glBindTexture(GL_TEXTURE_2D, 0);
-							// スレッド化したときは上の処理は後でやる
+			//				mpeg_coded_picture_number = frame->coded_picture_number;  // 順番ではこない
+			//				mpeg_display_picture_number = frame->display_picture_number;
 
-							++Mpegframeno;
-							break;
-						}
-					}
-					av_packet_unref(&packet);
-					//break;
-				}
-				else
-				{
-					// no more flames?
-					break;
-				}
-			}
+			//				// スレッド化対応で他の場所に移動
+			//				//if (m_dummyImageTex2 != 0)
+			//				//{
+			//				//	glDeleteTextures(1, &m_dummyImageTex2);
+			//				//}
+			//				//m_dummyImageTex2 = m_dummyImageTex1;
+
+			//				//glGenTextures(1, &m_dummyImageTex1);
+			//				//glBindTexture(GL_TEXTURE_2D, m_dummyImageTex1);
+			//				//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			//				//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			//				//glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+			//				//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, codec_context->width, codec_context->height, 0, GL_RGB, GL_UNSIGNED_BYTE, dst_picture.data[0]);
+			//				//glBindTexture(GL_TEXTURE_2D, 0);
+			//				// スレッド化したときは上の処理は後でやる
+
+			//				++Mpegframeno;
+			//				break;
+			//			}
+			//		}
+			//		av_packet_unref(&packet);
+			//		//break;
+			//	}
+			//	else
+			//	{
+			//		// no more flames?
+			//		break;
+			//	}
+			//}
 		}
 	}
 
@@ -3487,39 +3534,30 @@ namespace saba
 	{
 		if (b_view_mpeg == true)
 		{
-			// サイズ計算と作画
+			//// サイズ計算と作画
 
-			//ImVec2 scsize = ImGui::GetWindowSize();
-			//ImVec2 imsize(scsize.x, scsize.y - ImGui::GetCursorPos().y);
-			//ImGui::Image((void*)(intptr_t)m_dummyImageTex1, scsize);
-			//ImGui::Image((void*)(intptr_t)m_dummyImageTex1, ImGui::GetContentRegionAvail());
+			//ImVec2 imsize(ImGui::GetContentRegionAvail().x, codec_context->height * (ImGui::GetContentRegionAvail().x / codec_context->width));
+			//if (codec_context->height * (ImGui::GetContentRegionAvail().x / codec_context->width) > ImGui::GetContentRegionAvail().y)
+			//{
+			//	ImVec2 imsize2(codec_context->width * (ImGui::GetContentRegionAvail().y / codec_context->height), ImGui::GetContentRegionAvail().y);
+			//	imsize = imsize2;
+			//}
+			//if (b_view_mpeg_sm)
+			//{
+			//	ImGui::Image((void*)(intptr_t)m_dummyImageTex1, imsize);
+			//}
 
-			ImVec2 imsize(ImGui::GetContentRegionAvail().x, codec_context->height * (ImGui::GetContentRegionAvail().x / codec_context->width));
-			if (codec_context->height * (ImGui::GetContentRegionAvail().x / codec_context->width) > ImGui::GetContentRegionAvail().y)
-			{
-				ImVec2 imsize2(codec_context->width * (ImGui::GetContentRegionAvail().y / codec_context->height), ImGui::GetContentRegionAvail().y);
-				imsize = imsize2;
-			}
-			if (b_view_mpeg_sm)
-			{
-				ImGui::Image((void*)(intptr_t)m_dummyImageTex1, imsize);
-			}
-
-			//ImVec2 imsize(codec_context->width, codec_context->height);
-			//ImGui::Image((void*)(intptr_t)m_dummyImageTex1, imsize);
 		}
 	}
 
-	void Viewer::DrawImage()
+	void Viewer::DrawVideoImage()
 	{
 		if (!m_enableMpegControl)
 		{
 			return;
 		}
 
-		float width = 300;
-		float height = 250;
-		ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(300, 250), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowPos(ImVec2(0, 100 + 20), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Video", &m_enableMpegControl);
 		ImGui::PushID("Video UI");
@@ -3528,15 +3566,20 @@ namespace saba
 
 		float animFrame = float(m_context.GetAnimationTime() * m_animCtrlEditFPS);
 		float animTime = float(m_context.GetAnimationTime());
-		ImGui::Text("Width:%d", imageWidth);
+		ImGui::Text("Width:%d", frame_width);
 		ImGui::SameLine();
-		ImGui::Text("Height:%d", imageHeight);
+		ImGui::Text("Height:%d", frame_hight);
 
-		ImGui::Text("Mpeg Frame:%d/%ld", Mpegframeno, mpeg_numofframes);
-		ImGui::SameLine();
-		ImGui::Text("Framerate:%5.2f", mpeg_framerate);
-		ImGui::SameLine();
-		ImGui::Text("time:%f", mpeg_frame_time);
+		//ImGui::Text("Mpeg Frame:%d/%ld", Mpegframeno, mpeg_numofframes);
+		//ImGui::SameLine();
+		ImGui::Text("Framerate:%5.2f", frame_rate_e);
+
+		//ImGui::SameLine();
+		////ImGui::Text("time:%f", mpeg_frame_time);
+		//double b = strream_bitrate;
+		//b = b / 1000. / 1000.;
+		//ImGui::Text("brate:%5.2f", b);
+		// なぜかbitrateが取得できない
 
 		if (ImGui::Checkbox("View Video Image", &b_view_mpeg))
 		{
@@ -3568,6 +3611,30 @@ namespace saba
 		ImGui::Text("AniFrame:%f", animFrame);
 		ImGui::SameLine();
 		ImGui::Text("AniTime:%f", animTime);
+
+		//static int videoresult = 0;
+		//if (ImGui::Button("TEST:Start Video"))
+		//{
+		//	// mpeg_filename
+		//	std::string f = wide_to_utf8(mpeg_filename.c_str());
+		//	videoresult = changeVideo(f.c_str());
+		//}
+		//if (videoresult != 0)
+		//{
+		//	//SDL_Event event;
+		//	//int ffplay_status = ffplay_event(event);
+
+		//	std::string str;
+		//	ImGui::Text("%d x %d frate:%5.2f", frame_width, frame_hight, frame_rate_e);
+		//	ImGui::Text(str.c_str());
+		//	ImGui::SameLine();
+		//	ImGui::Text(video_format);
+		//	ImGui::SameLine();
+		//	double b = strream_bitrate;
+		//	b = b / 1000. / 1000.;
+		//	ImGui::Text("brate:%5.2f", b);
+		//}
+
 
 		if (b_view_mpeg)
 		{
