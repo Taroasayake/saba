@@ -1597,11 +1597,19 @@ namespace saba
 		}
 		if (ImGui::Button("Reset Anim"))
 		{
+			if (ffplay_getpause() == 0)
+			{
+				ffplay_pause();
+			}
 			ResetAnimation();
 		}
 		mpeg_push_init = false;
 		if (ImGui::Button("Init Anim"))
 		{
+			if (ffplay_getpause() == 0)
+			{
+				ffplay_pause();
+			}
 			InitializeAnimation();
 			mpeg_push_init = true;
 

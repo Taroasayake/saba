@@ -1151,6 +1151,19 @@ static void video_image_display(VideoState *is)
 
         vp->uploaded = 1;
         vp->flip_v = vp->frame->linesize[0] < 0;
+
+
+        printf("pts %f  duration %f   pos %lld \n", vp->pts, vp->duration, vp->pos);
+        printf("pts %lld  key_frame %d  time_base %f  dpn %d  cpn %d\n", vp->frame->pts, vp->frame->key_frame, av_q2d(vp->frame->time_base), vp->frame->display_picture_number, vp->frame->coded_picture_number);
+
+        //double pts;           /* presentation timestamp for the frame */
+        //double duration;      /* estimated duration of the frame */
+        //int64_t pos;          /* byte position of the frame in the input file */
+
+        // frame->pit_type  P or B
+        // frame->key_frame は使える
+        // frame->time_baseは使えない
+        // is->video_st->time_baseは num=1 den=30000    1/30000*frmae->pts = vp->pts
     }
 
 
@@ -1813,14 +1826,15 @@ retry:
             if (lastvp->serial != vp->serial)
             {
                 //is->frame_timer = av_gettime_relative() / 1000000.0;
-                is->frame_timer = targettime;
+                //is->frame_timer = targettime;
+                is->frame_timer = vp->pts;
             }
 
-            if (is->paused)
-            {
-                // pauseしているときはここで飛ばされる
-                goto display;
-            }
+            //if (is->paused)
+            //{
+            //    // pauseしているときはここで飛ばされる
+            //    goto display;
+            //}
 
             /* compute nominal last_duration */
             last_duration = vp_duration(is, lastvp, vp);
@@ -1836,7 +1850,8 @@ retry:
 
             // 次のパケットの時間を決定
             //is->frame_timer += delay;
-            is->frame_timer = (1.0 / frame_rate_e) * is->frame_number;
+            //is->frame_timer = (1.0 / frame_rate_e) * is->frame_number;
+            is->frame_timer = vp->pts;
             // こうすると1フレーム目は0となって
             // 2フレーム目は0.0333となるから
             // target timeは >=0   <0.0333  まではこのフレームとなる
@@ -1853,6 +1868,10 @@ retry:
                 update_video_pts(is, vp->pts, vp->pos, vp->serial);
             }
             SDL_UnlockMutex(is->pictq.mutex);
+
+            printf("target time %f  frame_timer %f  vp->pts %f   \n", time, is->frame_timer, vp->pts);
+            // リアルタイムで更新できているときは time = is->frame_timer = vp->ptsとなるが (fpsが29.97だからずれることがあるが)
+            // debug modeで遅れていると vp->ptsが進んでしまうので そのままは使えない??
 
             if (frame_queue_nb_remaining(&is->pictq) > 1) 
             {
@@ -1878,13 +1897,14 @@ retry:
                     frame_queue_next(&is->pictq);
                     is->frame_number++;
 
-                    //printf("frame drop\n");               // ここでスキップさせている
+                    printf("frame skip  \n");               // ここでスキップさせている
                     goto retry;
                 }
                 else if(time < is->frame_timer)
                 {
                     // 更新する必要がない
                     is->force_refresh = 0;
+                    printf("reuse texure  \n");
                     goto display;
                 }
             }
