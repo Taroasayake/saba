@@ -99,7 +99,7 @@ AVDictionary* format_opts = NULL, * codec_opts = NULL;
 
 GLuint	m_dummyImageTex1 = 0;
 GLuint	m_dummyImageTex2 = 0;
-
+double  MakeTextureTime = 0.0;
 
 
 #define MAX_QUEUE_SIZE (15 * 1024 * 1024)
@@ -315,6 +315,8 @@ typedef struct VideoState {
     PacketQueue subtitleq;
 
     double frame_timer;
+    int frame_number;
+
     double frame_last_returned_time;
     double frame_last_filter_delay;
     int video_stream;
@@ -1039,7 +1041,10 @@ static void video_image_display(VideoState *is)
     Frame *sp = NULL;
     SDL_Rect rect;
 
+    // 現在表示すべきパケットを取り出して その映像のテクスチャーを作る?
+
     vp = frame_queue_peek_last(&is->pictq);
+
     //if (is->subtitle_st) {
     //    if (frame_queue_nb_remaining(&is->subpq) > 0) {
     //        sp = frame_queue_peek(&is->subpq);
@@ -1479,15 +1484,21 @@ static int video_open(VideoState *is)
 static void video_display(VideoState *is)
 {
     if (!is->width)
+    {
         video_open(is);
+    }
 
     //SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     //SDL_RenderClear(renderer);
 
     if (is->audio_st && is->show_mode != VideoState::SHOW_MODE_VIDEO)
+    {
         video_audio_display(is);
+    }
     else if (is->video_st)
+    {
         video_image_display(is);
+    }
     
     //SDL_RenderPresent(renderer);
 }
@@ -1575,19 +1586,20 @@ static double get_master_clock(VideoState *is)
     return val;
 }
 
-static void check_external_clock_speed(VideoState *is) {
-   if (is->video_stream >= 0 && is->videoq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES ||
-       is->audio_stream >= 0 && is->audioq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES) {
-       set_clock_speed(&is->extclk, FFMAX(EXTERNAL_CLOCK_SPEED_MIN, is->extclk.speed - EXTERNAL_CLOCK_SPEED_STEP));
-   } else if ((is->video_stream < 0 || is->videoq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES) &&
-              (is->audio_stream < 0 || is->audioq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES)) {
-       set_clock_speed(&is->extclk, FFMIN(EXTERNAL_CLOCK_SPEED_MAX, is->extclk.speed + EXTERNAL_CLOCK_SPEED_STEP));
-   } else {
-       double speed = is->extclk.speed;
-       if (speed != 1.0)
-           set_clock_speed(&is->extclk, speed + EXTERNAL_CLOCK_SPEED_STEP * (1.0 - speed) / fabs(1.0 - speed));
-   }
-}
+//// extrenal clock使わないので
+//static void check_external_clock_speed(VideoState *is) {
+//   if (is->video_stream >= 0 && is->videoq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES ||
+//       is->audio_stream >= 0 && is->audioq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES) {
+//       set_clock_speed(&is->extclk, FFMAX(EXTERNAL_CLOCK_SPEED_MIN, is->extclk.speed - EXTERNAL_CLOCK_SPEED_STEP));
+//   } else if ((is->video_stream < 0 || is->videoq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES) &&
+//              (is->audio_stream < 0 || is->audioq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES)) {
+//       set_clock_speed(&is->extclk, FFMIN(EXTERNAL_CLOCK_SPEED_MAX, is->extclk.speed + EXTERNAL_CLOCK_SPEED_STEP));
+//   } else {
+//       double speed = is->extclk.speed;
+//       if (speed != 1.0)
+//           set_clock_speed(&is->extclk, speed + EXTERNAL_CLOCK_SPEED_STEP * (1.0 - speed) / fabs(1.0 - speed));
+//   }
+//}
 
 /* seek in the stream */
 static void stream_seek(VideoState *is, int64_t pos, int64_t rel, int by_bytes)
@@ -1606,9 +1618,13 @@ static void stream_seek(VideoState *is, int64_t pos, int64_t rel, int by_bytes)
 /* pause or resume the video */
 static void stream_toggle_pause(VideoState *is)
 {
-    if (is->paused) {
-        is->frame_timer += av_gettime_relative() / 1000000.0 - is->vidclk.last_updated;
-        if (is->read_pause_return != AVERROR(ENOSYS)) {
+    if (is->paused) 
+    {
+        // pause解除のときに 基準となる時間を時計に合わせる感じ?
+        //is->frame_timer += av_gettime_relative() / 1000000.0 - is->vidclk.last_updated;
+
+        if (is->read_pause_return != AVERROR(ENOSYS)) 
+        {
             is->vidclk.paused = 0;
         }
         set_clock(&is->vidclk, get_clock(&is->vidclk), is->vidclk.serial);
@@ -1622,6 +1638,7 @@ void toggle_pause(VideoState *is)
     stream_toggle_pause(is);
     is->step = 0;
 }
+
 void ffplay_pause()
 {
     if (is)
@@ -1629,6 +1646,7 @@ void ffplay_pause()
         toggle_pause(is);
     }
 }
+
 int ffplay_getpause()
 {
     if (is != 0)
@@ -1640,12 +1658,13 @@ int ffplay_getpause()
         return 0;
     }
 }
-void ffplay_toggle_full_screen()
-{
-    is_full_screen = !is_full_screen;
-    SDL_SetWindowFullscreen(window, is_full_screen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
-    //toggle_full_screen(is);
-}
+
+//void ffplay_toggle_full_screen()
+//{
+//    is_full_screen = !is_full_screen;
+//    SDL_SetWindowFullscreen(window, is_full_screen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+//    //toggle_full_screen(is);
+//}
 
 
 static void toggle_mute(VideoState *is)
@@ -1735,31 +1754,48 @@ static void update_video_pts(VideoState *is, double pts, int64_t pos, int serial
     sync_clock_to_slave(&is->extclk, &is->vidclk);
 }
 
+
+
+// 画面を更新する処理
+//  この処理でフレームをスキップすることで
+//  更新タイミングが遅くても時間通りに画面が更新されるようになる
+
 /* called to display each frame */
-static void video_refresh(void *opaque, double *remaining_time)
+static void video_refresh(void *opaque, double *remaining_time, double targettime)
 {
     VideoState *is = (VideoState *)opaque;
     double time;
 
-    Frame *sp, *sp2;
+    ///Frame *sp, *sp2;
 
-    if (!is->paused && get_master_sync_type(is) == AV_SYNC_EXTERNAL_CLOCK && is->realtime)
-        check_external_clock_speed(is);
+    //// external clock使わないので
+    //if (!is->paused && get_master_sync_type(is) == AV_SYNC_EXTERNAL_CLOCK && is->realtime)
+    //{
+    //    check_external_clock_speed(is);
+    //}
 
-    if (!display_disable && is->show_mode != VideoState::SHOW_MODE_VIDEO && is->audio_st) {
-        time = av_gettime_relative() / 1000000.0;
-        if (is->force_refresh || is->last_vis_time + rdftspeed < time) {
-            video_display(is);
-            is->last_vis_time = time;
-        }
-        *remaining_time = FFMIN(*remaining_time, is->last_vis_time + rdftspeed - time);
-    }
+    //// audio表示使わない
+    //if (!display_disable && is->show_mode != VideoState::SHOW_MODE_VIDEO && is->audio_st) 
+    //{
+    //    // Video表示じゃないとき?
+    //    time = av_gettime_relative() / 1000000.0;
+    //    if (is->force_refresh || is->last_vis_time + rdftspeed < time) 
+    //    {
+    //        video_display(is);
+    //        is->last_vis_time = time;
+    //    }
+    //    *remaining_time = FFMIN(*remaining_time, is->last_vis_time + rdftspeed - time);
+    //}
 
-    if (is->video_st) {
+    if (is->video_st) 
+    {
 retry:
-        if (frame_queue_nb_remaining(&is->pictq) == 0) {
+        if (frame_queue_nb_remaining(&is->pictq) == 0) 
+        {
             // nothing to do, no picture to display in the queue
-        } else {
+        } 
+        else 
+        {
             double last_duration, duration, delay;
             Frame *vp, *lastvp;
 
@@ -1767,93 +1803,156 @@ retry:
             lastvp = frame_queue_peek_last(&is->pictq);
             vp = frame_queue_peek(&is->pictq);
 
-            if (vp->serial != is->videoq.serial) {
+            if (vp->serial != is->videoq.serial) 
+            {
                 frame_queue_next(&is->pictq);
+                printf("skip1\n");
                 goto retry;
             }
 
             if (lastvp->serial != vp->serial)
-                is->frame_timer = av_gettime_relative() / 1000000.0;
+            {
+                //is->frame_timer = av_gettime_relative() / 1000000.0;
+                is->frame_timer = targettime;
+            }
 
             if (is->paused)
+            {
+                // pauseしているときはここで飛ばされる
                 goto display;
+            }
 
             /* compute nominal last_duration */
             last_duration = vp_duration(is, lastvp, vp);
             delay = compute_target_delay(last_duration, is);
 
-            time= av_gettime_relative()/1000000.0;
-            if (time < is->frame_timer + delay) {
-                *remaining_time = FFMIN(is->frame_timer + delay - time, *remaining_time);
-                goto display;
-            }
+            //time= av_gettime_relative()/1000000.0;
+            time = targettime;
+            //if (time < is->frame_timer + delay) 
+            //{
+            //    *remaining_time = FFMIN(is->frame_timer + delay - time, *remaining_time);
+            //    goto display;
+            //}
 
-            is->frame_timer += delay;
-            if (delay > 0 && time - is->frame_timer > AV_SYNC_THRESHOLD_MAX)
-                is->frame_timer = time;
+            // 次のパケットの時間を決定
+            //is->frame_timer += delay;
+            is->frame_timer = (1.0 / frame_rate_e) * is->frame_number;
+            // こうすると1フレーム目は0となって
+            // 2フレーム目は0.0333となるから
+            // target timeは >=0   <0.0333  まではこのフレームとなる
+            // target timeが >=0.033の場合は１個飛ばして再計算
+            // taeget timeが <0 の場合は再作成しなくてもよいとなる
+
+            //// #define AV_SYNC_THRESHOLD_MAX 0.1
+            //if (delay > 0 && time - is->frame_timer > AV_SYNC_THRESHOLD_MAX)
+            //    is->frame_timer = time;
 
             SDL_LockMutex(is->pictq.mutex);
             if (!isnan(vp->pts))
+            {
                 update_video_pts(is, vp->pts, vp->pos, vp->serial);
+            }
             SDL_UnlockMutex(is->pictq.mutex);
 
-            if (frame_queue_nb_remaining(&is->pictq) > 1) {
+            if (frame_queue_nb_remaining(&is->pictq) > 1) 
+            {
+                // パケットが堪っているとき?
+                // (target)timeが (is->frame_timer + duration)よりも進んでいるのであれば
+                // パケットを一個飛ばして 次のフレームに進めるっていう処理
+
                 Frame *nextvp = frame_queue_peek_next(&is->pictq);
                 duration = vp_duration(is, vp, nextvp);
-                if(!is->step && (framedrop>0 || (framedrop && get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)) && time > is->frame_timer + duration){
+                //if(!is->step && (framedrop>0 || (framedrop && get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)) && time > is->frame_timer + duration)
+                if (is->step)
+                {
+                    // 強制更新する
+                }
+                else if (time > is->frame_timer + duration)
+                {
+                    // is->step : stepモードでない
+                    // framedrop : option cpuが低速の場合はdropさせる
+                    // get_master_sync_type(is) : 通常は AudioがMaster 映像しかなければ映像主体なのかも
+                    // duration : 0.033366666666666669  frame rate
+
                     is->frame_drops_late++;
                     frame_queue_next(&is->pictq);
+                    is->frame_number++;
+
+                    //printf("frame drop\n");               // ここでスキップさせている
                     goto retry;
                 }
-            }
-
-            if (is->subtitle_st) {
-                while (frame_queue_nb_remaining(&is->subpq) > 0) {
-                    sp = frame_queue_peek(&is->subpq);
-
-                    if (frame_queue_nb_remaining(&is->subpq) > 1)
-                        sp2 = frame_queue_peek_next(&is->subpq);
-                    else
-                        sp2 = NULL;
-
-                    if (sp->serial != is->subtitleq.serial
-                            || (is->vidclk.pts > (sp->pts + ((float) sp->sub.end_display_time / 1000)))
-                            || (sp2 && is->vidclk.pts > (sp2->pts + ((float) sp2->sub.start_display_time / 1000))))
-                    {
-                        if (sp->uploaded) {
-                            int i;
-                            for (i = 0; i < sp->sub.num_rects; i++) {
-                                AVSubtitleRect *sub_rect = sp->sub.rects[i];
-                                uint8_t *pixels;
-                                int pitch, j;
-
-                                if (!SDL_LockTexture(is->sub_texture, (SDL_Rect *)sub_rect, (void **)&pixels, &pitch)) {
-                                    for (j = 0; j < sub_rect->h; j++, pixels += pitch)
-                                        memset(pixels, 0, sub_rect->w << 2);
-                                    SDL_UnlockTexture(is->sub_texture);
-                                }
-                            }
-                        }
-                        frame_queue_next(&is->subpq);
-                    } else {
-                        break;
-                    }
+                else if(time < is->frame_timer)
+                {
+                    // 更新する必要がない
+                    is->force_refresh = 0;
+                    goto display;
                 }
             }
+
+            //if (is->subtitle_st) 
+            //{
+            //    while (frame_queue_nb_remaining(&is->subpq) > 0) 
+            //    {
+            //        sp = frame_queue_peek(&is->subpq);
+
+            //        if (frame_queue_nb_remaining(&is->subpq) > 1)
+            //            sp2 = frame_queue_peek_next(&is->subpq);
+            //        else
+            //            sp2 = NULL;
+
+            //        if (sp->serial != is->subtitleq.serial
+            //                || (is->vidclk.pts > (sp->pts + ((float) sp->sub.end_display_time / 1000)))
+            //                || (sp2 && is->vidclk.pts > (sp2->pts + ((float) sp2->sub.start_display_time / 1000))))
+            //        {
+            //            if (sp->uploaded) 
+            //            {
+            //                int i;
+            //                for (i = 0; i < sp->sub.num_rects; i++) 
+            //                {
+            //                    AVSubtitleRect *sub_rect = sp->sub.rects[i];
+            //                    uint8_t *pixels;
+            //                    int pitch, j;
+
+            //                    if (!SDL_LockTexture(is->sub_texture, (SDL_Rect *)sub_rect, (void **)&pixels, &pitch)) 
+            //                    {
+            //                        for (j = 0; j < sub_rect->h; j++, pixels += pitch)
+            //                            memset(pixels, 0, sub_rect->w << 2);
+            //                        SDL_UnlockTexture(is->sub_texture);
+            //                    }
+            //                }
+            //            }
+            //            frame_queue_next(&is->subpq);
+            //        } 
+            //        else 
+            //        {
+            //            break;
+            //        }
+            //    }
+            //}
 
             frame_queue_next(&is->pictq);
             is->force_refresh = 1;
+            is->frame_number++;
 
             if (is->step && !is->paused)
+            {
                 stream_toggle_pause(is);
+            }
         }
+
 display:
+        // 画面更新に行く
         /* display picture */
+        //  pause 掛かっていると is->pictq.rindex_shownが 1にならないので結局更新できていない
         if (!display_disable && is->force_refresh && is->show_mode == VideoState::SHOW_MODE_VIDEO && is->pictq.rindex_shown)
             video_display(is);
     }
+
     is->force_refresh = 0;
-    if (show_status) {
+
+    // STATUS 表示(コンソール)
+    if (show_status) 
+    {
         AVBPrint buf;
         static int64_t last_time;
         int64_t cur_time;
@@ -1891,6 +1990,8 @@ display:
                       sqsize,
                       is->video_st ? is->viddec.avctx->pts_correction_num_faulty_dts : 0,
                       is->video_st ? is->viddec.avctx->pts_correction_num_faulty_pts : 0);
+            // get_master_clock(is):秒数
+            // fd:frame drop
 
             if (show_status == 1 && AV_LOG_INFO > av_log_get_level())
                 fprintf(stderr, "%s", buf.str);
@@ -1904,6 +2005,8 @@ display:
         }
     }
 }
+
+
 
 static int queue_picture(VideoState *is, AVFrame *src_frame, double pts, double duration, int64_t pos, int serial)
 {
@@ -2301,6 +2404,8 @@ int frame_hight = 0;
 double frame_rate_e = 0;
 char video_format[1024] = {0};
 int64_t strream_bitrate = 0;
+int frame_no = 0;
+int frame_no_read = 0;
 
 static int video_thread(void *arg)
 {
@@ -2338,8 +2443,12 @@ static int video_thread(void *arg)
             || last_format != frame->format
             || last_serial != is->viddec.pkt_serial
             || last_vfilter_idx != is->vfilter_idx) {
+
             frame_width = frame->width;
             frame_hight = frame->height;
+            frame_no = -1;
+            frame_no_read = -1;
+
             if (frame_rate.num && frame_rate.den)
             {
                 frame_rate_e = (double)frame_rate.num / (double)frame_rate.den ;
@@ -3142,13 +3251,17 @@ static int read_thread(void *arg)
     for (;;) {
         if (is->abort_request)
             break;
+
         if (is->paused != is->last_paused) {
+
             is->last_paused = is->paused;
+
             if (is->paused)
                 is->read_pause_return = av_read_pause(ic);
             else
                 av_read_play(ic);
         }
+
 #if CONFIG_RTSP_DEMUXER || CONFIG_MMSH_PROTOCOL
         if (is->paused &&
                 (!strcmp(ic->iformat->name, "rtsp") ||
@@ -3159,6 +3272,7 @@ static int read_thread(void *arg)
             continue;
         }
 #endif
+
         if (is->seek_req) {
             int64_t seek_target = is->seek_pos;
             int64_t seek_min    = is->seek_rel > 0 ? seek_target - is->seek_rel + 2: INT64_MIN;
@@ -3189,6 +3303,7 @@ static int read_thread(void *arg)
             if (is->paused)
                 step_to_next_frame(is);
         }
+
         if (is->queue_attachments_req) {
             if (is->video_st && is->video_st->disposition & AV_DISPOSITION_ATTACHED_PIC) {
                 if ((ret = av_packet_ref(pkt, &is->video_st->attached_pic)) < 0)
@@ -3211,6 +3326,7 @@ static int read_thread(void *arg)
             SDL_UnlockMutex(wait_mutex);
             continue;
         }
+
         if (!is->paused &&
             (!is->audio_st || (is->auddec.finished == is->audioq.serial && frame_queue_nb_remaining(&is->sampq) == 0)) &&
             (!is->video_st || (is->viddec.finished == is->videoq.serial && frame_queue_nb_remaining(&is->pictq) == 0))) {
@@ -3237,6 +3353,7 @@ static int read_thread(void *arg)
                 }
             }
         }
+
         ret = av_read_frame(ic, pkt);
         if (ret < 0) {
             if ((ret == AVERROR_EOF || avio_feof(ic->pb)) && !is->eof) {
@@ -3269,14 +3386,19 @@ static int read_thread(void *arg)
                 av_q2d(ic->streams[pkt->stream_index]->time_base) -
                 (double)(start_time != AV_NOPTS_VALUE ? start_time : 0) / 1000000
                 <= ((double)duration / 1000000);
+
         if (pkt->stream_index == is->audio_stream && pkt_in_play_range) {
             packet_queue_put(&is->audioq, pkt);
-        } else if (pkt->stream_index == is->video_stream && pkt_in_play_range
+        } 
+        else if (pkt->stream_index == is->video_stream && pkt_in_play_range
                    && !(is->video_st->disposition & AV_DISPOSITION_ATTACHED_PIC)) {
+            ++frame_no_read;
             packet_queue_put(&is->videoq, pkt);
-        } else if (pkt->stream_index == is->subtitle_stream && pkt_in_play_range) {
+        } 
+        else if (pkt->stream_index == is->subtitle_stream && pkt_in_play_range) {
             packet_queue_put(&is->subtitleq, pkt);
-        } else {
+        } 
+        else {
             av_packet_unref(pkt);
         }
     }
@@ -3315,6 +3437,16 @@ static VideoState *stream_open(const char *filename,
     is->iformat = iformat;
     is->ytop    = 0;
     is->xleft   = 0;
+
+    is->frame_timer = 0;        // 初期化 本当は -durationにしたいが
+    is->frame_number = 0;       // 新規追加
+    MakeTextureTime = -9999.99;
+    if (m_dummyImageTex2 != 0)
+    {
+        glDeleteTextures(1, &m_dummyImageTex2);
+        m_dummyImageTex2 = 0;
+    }
+
 
     /* start video display */
     if (frame_queue_init(&is->pictq, &is->videoq, VIDEO_PICTURE_QUEUE_SIZE, 1) < 0)
@@ -3474,50 +3606,6 @@ static void toggle_audio_display(VideoState *is)
 
 int ffplay_seekbar = 0;
 
-int changeVideoFrame()
-{
-    if (is != 0)
-    {
-        double remaining_time = REFRESH_RATE;
-
-        is->force_refresh = 1;
-
-        video_refresh(is, &remaining_time);
-
-        if (!cursor_hidden && av_gettime_relative() - cursor_last_shown > CURSOR_HIDE_DELAY) {
-            SDL_ShowCursor(0);
-            cursor_hidden = 1;
-            //av_log(NULL, AV_LOG_INFO, "Cursor Off2\n");
-        }
-
-        // seek bar
-        if ((ffplay_seekbar != 0) || (cursor_hidden == 0))
-        {
-            if (is->ic != 0)
-            {
-                if (is->ic->duration != 0)
-                {
-                    double pos = get_master_clock(is);                    // 秒のdouble
-                    double len = (double)is->ic->duration / 1000. / 1000.;
-                    pos = pos / len;
-
-                    //screen_width 
-                    //screen_height
-
-                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                    SDL_SetRenderDrawColor(renderer, 0, 0, 0xFF, 0x60);
-                    SDL_Rect rect;
-                    rect.x = 0;
-                    rect.w = screen_width * pos;
-                    rect.y = screen_height - 50;
-                    rect.h = 15;
-                    SDL_RenderFillRect(renderer, &rect);
-                }
-            }
-        }
-    }
-    return 0;
-}
 
 static void seek_chapter(VideoState *is, int incr)
 {
@@ -3545,206 +3633,6 @@ static void seek_chapter(VideoState *is, int incr)
     stream_seek(is, av_rescale_q(is->ic->chapters[i]->start, is->ic->chapters[i]->time_base,
                                  AV_TIME_BASE_Q), 0, 0);
 }
-
-///* handle an event sent by the GUI */
-//static void event_loop(VideoState *cur_stream)
-//{
-//    SDL_Event event;
-//    double incr, pos, frac;
-//
-//    for (;;) {
-//        double x;
-//        refresh_loop_wait_event(cur_stream, &event);
-//        switch (event.type) {
-//        case SDL_KEYDOWN:
-//            if (exit_on_keydown || event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_q) {
-//                do_exit(cur_stream);
-//                break;
-//            }
-//            // If we don't yet have a window, skip all key events, because read_thread might still be initializing...
-//            if (!cur_stream->width)
-//                continue;
-//            switch (event.key.keysym.sym) {
-//            case SDLK_f:
-//                toggle_full_screen(cur_stream);
-//                cur_stream->force_refresh = 1;
-//                break;
-//            case SDLK_p:
-//            case SDLK_SPACE:
-//                toggle_pause(cur_stream);
-//                break;
-//            case SDLK_m:
-//                toggle_mute(cur_stream);
-//                break;
-//            case SDLK_KP_MULTIPLY:
-//            case SDLK_0:
-//                update_volume(cur_stream, 1, SDL_VOLUME_STEP);
-//                break;
-//            case SDLK_KP_DIVIDE:
-//            case SDLK_9:
-//                update_volume(cur_stream, -1, SDL_VOLUME_STEP);
-//                break;
-//            case SDLK_s: // S: Step to next frame
-//                step_to_next_frame(cur_stream);
-//                break;
-//            case SDLK_a:
-//                stream_cycle_channel(cur_stream, AVMEDIA_TYPE_AUDIO);
-//                break;
-//            case SDLK_v:
-//                stream_cycle_channel(cur_stream, AVMEDIA_TYPE_VIDEO);
-//                break;
-//            case SDLK_c:
-//                stream_cycle_channel(cur_stream, AVMEDIA_TYPE_VIDEO);
-//                stream_cycle_channel(cur_stream, AVMEDIA_TYPE_AUDIO);
-//                stream_cycle_channel(cur_stream, AVMEDIA_TYPE_SUBTITLE);
-//                break;
-//            case SDLK_t:
-//                stream_cycle_channel(cur_stream, AVMEDIA_TYPE_SUBTITLE);
-//                break;
-//            case SDLK_w:
-//#if CONFIG_AVFILTER
-//                if (cur_stream->show_mode == SHOW_MODE_VIDEO && cur_stream->vfilter_idx < nb_vfilters - 1) {
-//                    if (++cur_stream->vfilter_idx >= nb_vfilters)
-//                        cur_stream->vfilter_idx = 0;
-//                } else {
-//                    cur_stream->vfilter_idx = 0;
-//                    toggle_audio_display(cur_stream);
-//                }
-//#else
-//                toggle_audio_display(cur_stream);
-//#endif
-//                break;
-//            case SDLK_PAGEUP:
-//                if (cur_stream->ic->nb_chapters <= 1) {
-//                    incr = 600.0;
-//                    goto do_seek;
-//                }
-//                seek_chapter(cur_stream, 1);
-//                break;
-//            case SDLK_PAGEDOWN:
-//                if (cur_stream->ic->nb_chapters <= 1) {
-//                    incr = -600.0;
-//                    goto do_seek;
-//                }
-//                seek_chapter(cur_stream, -1);
-//                break;
-//            case SDLK_LEFT:
-//                incr = seek_interval ? -seek_interval : -10.0;
-//                goto do_seek;
-//            case SDLK_RIGHT:
-//                incr = seek_interval ? seek_interval : 10.0;
-//                goto do_seek;
-//            case SDLK_UP:
-//                incr = 60.0;
-//                goto do_seek;
-//            case SDLK_DOWN:
-//                incr = -60.0;
-//            do_seek:
-//                    if (seek_by_bytes) {
-//                        pos = -1;
-//                        if (pos < 0 && cur_stream->video_stream >= 0)
-//                            pos = frame_queue_last_pos(&cur_stream->pictq);
-//                        if (pos < 0 && cur_stream->audio_stream >= 0)
-//                            pos = frame_queue_last_pos(&cur_stream->sampq);
-//                        if (pos < 0)
-//                            pos = avio_tell(cur_stream->ic->pb);
-//                        if (cur_stream->ic->bit_rate)
-//                            incr *= cur_stream->ic->bit_rate / 8.0;
-//                        else
-//                            incr *= 180000.0;
-//                        pos += incr;
-//                        stream_seek(cur_stream, pos, incr, 1);
-//                    } else {
-//                        pos = get_master_clock(cur_stream);
-//                        if (isnan(pos))
-//                            pos = (double)cur_stream->seek_pos / AV_TIME_BASE;
-//                        pos += incr;
-//                        if (cur_stream->ic->start_time != AV_NOPTS_VALUE && pos < cur_stream->ic->start_time / (double)AV_TIME_BASE)
-//                            pos = cur_stream->ic->start_time / (double)AV_TIME_BASE;
-//                        stream_seek(cur_stream, (int64_t)(pos * AV_TIME_BASE), (int64_t)(incr * AV_TIME_BASE), 0);
-//                    }
-//                break;
-//            default:
-//                break;
-//            }
-//            break;
-//        case SDL_MOUSEBUTTONDOWN:
-//            if (exit_on_mousedown) {
-//                do_exit(cur_stream);
-//                break;
-//            }
-//            if (event.button.button == SDL_BUTTON_LEFT) {
-//                static int64_t last_mouse_left_click = 0;
-//                if (av_gettime_relative() - last_mouse_left_click <= 500000) {
-//                    toggle_full_screen(cur_stream);
-//                    cur_stream->force_refresh = 1;
-//                    last_mouse_left_click = 0;
-//                } else {
-//                    last_mouse_left_click = av_gettime_relative();
-//                }
-//            }
-//        case SDL_MOUSEMOTION:
-//            if (cursor_hidden) {
-//                SDL_ShowCursor(1);
-//                cursor_hidden = 0;
-//            }
-//            cursor_last_shown = av_gettime_relative();
-//            if (event.type == SDL_MOUSEBUTTONDOWN) {
-//                if (event.button.button != SDL_BUTTON_RIGHT)
-//                    break;
-//                x = event.button.x;
-//            } else {
-//                if (!(event.motion.state & SDL_BUTTON_RMASK))
-//                    break;
-//                x = event.motion.x;
-//            }
-//                if (seek_by_bytes || cur_stream->ic->duration <= 0) {
-//                    uint64_t size =  avio_size(cur_stream->ic->pb);
-//                    stream_seek(cur_stream, size*x/cur_stream->width, 0, 1);
-//                } else {
-//                    int64_t ts;
-//                    int ns, hh, mm, ss;
-//                    int tns, thh, tmm, tss;
-//                    tns  = cur_stream->ic->duration / 1000000LL;
-//                    thh  = tns / 3600;
-//                    tmm  = (tns % 3600) / 60;
-//                    tss  = (tns % 60);
-//                    frac = x / cur_stream->width;
-//                    ns   = frac * tns;
-//                    hh   = ns / 3600;
-//                    mm   = (ns % 3600) / 60;
-//                    ss   = (ns % 60);
-//                    av_log(NULL, AV_LOG_INFO,
-//                           "Seek to %2.0f%% (%2d:%02d:%02d) of total duration (%2d:%02d:%02d)       \n", frac*100,
-//                            hh, mm, ss, thh, tmm, tss);
-//                    ts = frac * cur_stream->ic->duration;
-//                    if (cur_stream->ic->start_time != AV_NOPTS_VALUE)
-//                        ts += cur_stream->ic->start_time;
-//                    stream_seek(cur_stream, ts, 0, 0);
-//                }
-//            break;
-//        case SDL_WINDOWEVENT:
-//            switch (event.window.event) {
-//                case SDL_WINDOWEVENT_SIZE_CHANGED:
-//                    screen_width  = cur_stream->width  = event.window.data1;
-//                    screen_height = cur_stream->height = event.window.data2;
-//                    if (cur_stream->vis_texture) {
-//                        SDL_DestroyTexture(cur_stream->vis_texture);
-//                        cur_stream->vis_texture = NULL;
-//                    }
-//                case SDL_WINDOWEVENT_EXPOSED:
-//                    cur_stream->force_refresh = 1;
-//            }
-//            break;
-//        case SDL_QUIT:
-//        case FF_QUIT_EVENT:
-//            do_exit(cur_stream);
-//            break;
-//        default:
-//            break;
-//        }
-//    }
-//}
 
 
 double ffplay_getpos()
@@ -4472,6 +4360,8 @@ int changeVideo(const char* filename)
             }
 
             ffplay_pause();
+
+            is->force_refresh = 1;          // 1フレーム目は強制的にかきたい
         }
     }
     else
@@ -4486,4 +4376,51 @@ int changeVideo(const char* filename)
 
 
     return (input_filename != 0);
+}
+
+// Video 更新処理
+int changeVideoFrame(double videotime)
+{
+    if (is != 0)
+    {
+        double remaining_time = REFRESH_RATE;
+
+        //is->force_refresh = 1;            // sabaの場合は Texuteが生成できていれば よいので毎回更新する必要がない
+
+        video_refresh(is, &remaining_time, videotime);
+
+        //// cursor 自動off
+        //if (!cursor_hidden && av_gettime_relative() - cursor_last_shown > CURSOR_HIDE_DELAY) {
+        //    SDL_ShowCursor(0);
+        //    cursor_hidden = 1;
+        //    //av_log(NULL, AV_LOG_INFO, "Cursor Off2\n");
+        //}
+
+        //// seek bar
+        //if ((ffplay_seekbar != 0) || (cursor_hidden == 0))
+        //{
+        //    if (is->ic != 0)
+        //    {
+        //        if (is->ic->duration != 0)
+        //        {
+        //            double pos = get_master_clock(is);                    // 秒のdouble
+        //            double len = (double)is->ic->duration / 1000. / 1000.;
+        //            pos = pos / len;
+
+        //            //screen_width 
+        //            //screen_height
+
+        //            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        //            SDL_SetRenderDrawColor(renderer, 0, 0, 0xFF, 0x60);
+        //            SDL_Rect rect;
+        //            rect.x = 0;
+        //            rect.w = screen_width * pos;
+        //            rect.y = screen_height - 50;
+        //            rect.h = 15;
+        //            SDL_RenderFillRect(renderer, &rect);
+        //        }
+        //    }
+        //}
+    }
+    return 0;
 }

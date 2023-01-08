@@ -10,7 +10,7 @@ extern "C" {
 	int ffplay_main1(int argc, char** argv);
 	int ffplay_main2();
 	int ffplay_main3(SDL_Window* wh, SDL_Renderer* rd, int winx, int winy);
-	int changeVideoFrame();
+	int changeVideoFrame(double videotime);
 	int ffplay_event(SDL_Event event);
 	double ffplay_getpos();
 	int64_t ffplay_getstreamsecond();
@@ -29,7 +29,9 @@ extern "C" {
 	extern 	int frame_hight;
 	extern double frame_rate_e ;
 	extern int64_t strream_bitrate;
-	
+	extern int frame_no;
+	extern int frame_no_read;
+
 	extern char video_format[1024];
 
 	extern const char* input_filename;

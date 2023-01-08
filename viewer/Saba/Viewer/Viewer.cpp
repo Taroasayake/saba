@@ -485,15 +485,6 @@ namespace saba
 
 			ffvideo_pollEvent();
 
-			// Video Rendering
-			int result = changeVideoFrame();
-			if (result < 0)
-			{
-				printf("ffmpeg error 4\n");
-				return result;
-			}
-
-
 			if (m_context.IsUIEnabled())
 			{
 				DrawMenuBar();
@@ -685,6 +676,16 @@ namespace saba
 		{
 			m_context.SetPlayMode(ViewerContext::PlayMode::Stop);
 		}
+
+		// Video Rendering
+		{
+			double animTime = m_context.GetAnimationTime();
+			int result = changeVideoFrame(animTime);
+			if (result < 0)
+			{
+				printf("ffmpeg error 4\n");
+			}
+		}
 	}
 
 	void Viewer::DrawShadowMap()
@@ -742,11 +743,11 @@ namespace saba
 		// 動画のイメージを作りたい
 		if(b_view_mpeg)
 		{
-			// 動画のイメージを作り終わるまで待つ
-			if (m_context.IsUIEnabled())
-			{
-				DrawUI2();
-			}
+			//// 動画のイメージを作り終わるまで待つ
+			//if (m_context.IsUIEnabled())
+			//{
+			//	DrawUI2();
+			//}
 
 			GLuint	m_dummyImageTex1 = GetVideoTexId();
 			if (m_dummyImageTex1 != 0)
@@ -1111,11 +1112,6 @@ namespace saba
 
 		// スレッド終了を待つ
 		ViewMpegWaitDone();
-	}
-
-	void Viewer::DrawUI2()
-	{
-
 	}
 
 	namespace
@@ -1581,10 +1577,8 @@ namespace saba
 		{
 			if (ImGui::Button("Play"))
 			{
-				double animTime = m_context.GetAnimationTime();
-				ffplay_seekpos(animTime);
-
-				//::Sleep(50);
+				//double animTime = m_context.GetAnimationTime();
+				//ffplay_seekpos(animTime);
 
 				m_context.SetPlayMode(ViewerContext::PlayMode::PlayStart);
 
@@ -3580,6 +3574,8 @@ namespace saba
 		//b = b / 1000. / 1000.;
 		//ImGui::Text("brate:%5.2f", b);
 		// なぜかbitrateが取得できない
+
+		ImGui::Text("Frame No:%d", frame_no);
 
 		if (ImGui::Checkbox("View Video Image", &b_view_mpeg))
 		{

@@ -166,7 +166,6 @@ namespace saba
 		void DrawMenuBar();
 		void DrawCustomMenu(CustomCommandMenuItem* parentItem);
 		void DrawUI();
-		void DrawUI2();
 		void DrawInfoUI();
 		void DrawLogUI();
 		void DrawCommandUI();
