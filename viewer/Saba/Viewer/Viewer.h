@@ -198,18 +198,25 @@ namespace saba
 		int imageWidth;
 		//GLuint	m_dummyImageTex1;
 		//GLuint	m_dummyImageTex2;
-		void ViewMpeg(float animFrame, float animTime, bool resetTime, bool prevframe);
-		void ViewMpegWaitDone();
-		void ViewMpeg2(float animFrame, float animTime, bool resetTime, bool prevframe);
+		//void ViewMpeg(float animFrame, float animTime, bool resetTime, bool prevframe);
+		//void ViewMpegWaitDone();
+		//void ViewMpeg2(float animFrame, float animTime, bool resetTime, bool prevframe);
 		bool LoadFfmpeg;
 		bool LoadMpegfile(const std::string& filename);
 		bool m_enableMpegControl;
 		void LoadMpegCheck();
-		void DrawMpeg();
+		//void DrawMpeg();
+
+		void VideoSeek(double pos);
+		void DoVideoSeek();
+		void SeekInit();
+		int DoSeekCounter;
+		int DoSeekWaitCounter;
+		double DoSeekPos;
 
 		//std::thread m_mpegThread;
 		//bool m_mpegThreadExit;
-		void ViewMpegThread();
+		//void ViewMpegThread();
 		//std::condition_variable cv;
 		//std::mutex mtx;
 		//std::condition_variable cv_done;

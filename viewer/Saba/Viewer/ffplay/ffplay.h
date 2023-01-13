@@ -20,7 +20,7 @@ extern "C" {
 	int ffplay_isfullscreen();
 	int ffplay_getmute();
 	void ffplay_togglemute();
-	void ffplay_toggle_full_screen();
+	//void ffplay_toggle_full_screen();
 	int changeVideo(const char* filename);
 	void ffvideo_pollEvent();
 	unsigned int GetVideoTexId();

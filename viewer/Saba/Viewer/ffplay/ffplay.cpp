@@ -639,6 +639,9 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
                             } else if (!decoder_reorder_pts) {
                                 frame->pts = frame->pkt_dts;
                             }
+#ifdef DBPRINT
+                            printf("df pts:%ld %ld %ld   \n", frame->pts, frame->best_effort_timestamp, frame->pkt_dts);
+#endif
                         }
                         break;
                     case AVMEDIA_TYPE_AUDIO:
@@ -1112,9 +1115,9 @@ static void video_image_display(VideoState *is)
 
             uint8_t* dst_data[4];
             dst_data[0] = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
-            dst_data[1] = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
-            dst_data[2] = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
-            dst_data[3] = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
+            //dst_data[1] = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
+            //dst_data[2] = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
+            //dst_data[3] = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
             int linesize[AV_NUM_DATA_POINTERS] = {};
             linesize[0] = vp->frame->width * 3;
 
@@ -1134,11 +1137,12 @@ static void video_image_display(VideoState *is)
                 glBindTexture(GL_TEXTURE_2D, 0);
             }
             RenewVideoTex();
+            MakeTextureTime = vp->pts;
 
             av_free(dst_data[0]);
-            av_free(dst_data[1]);
-            av_free(dst_data[2]);
-            av_free(dst_data[3]);
+            //av_free(dst_data[1]);
+            //av_free(dst_data[2]);
+            //av_free(dst_data[3]);
 
             //mpeg_coded_picture_number = frame->coded_picture_number;  // 順番ではこない
             //mpeg_display_picture_number = frame->display_picture_number;
@@ -1153,8 +1157,9 @@ static void video_image_display(VideoState *is)
         vp->flip_v = vp->frame->linesize[0] < 0;
 
 
-        printf("pts %f  duration %f   pos %lld \n", vp->pts, vp->duration, vp->pos);
-        printf("pts %lld  key_frame %d  time_base %f  dpn %d  cpn %d\n", vp->frame->pts, vp->frame->key_frame, av_q2d(vp->frame->time_base), vp->frame->display_picture_number, vp->frame->coded_picture_number);
+        ////printf("pts %f  duration %f   pos %lld \n", vp->pts, vp->duration, vp->pos);
+        ////printf("pts %lld  key_frame %d  time_base %f  dpn %d  cpn %d\n", vp->frame->pts, vp->frame->key_frame, av_q2d(vp->frame->time_base), vp->frame->display_picture_number, vp->frame->coded_picture_number);
+
 
         //double pts;           /* presentation timestamp for the frame */
         //double duration;      /* estimated duration of the frame */
@@ -1618,6 +1623,10 @@ static double get_master_clock(VideoState *is)
 static void stream_seek(VideoState *is, int64_t pos, int64_t rel, int by_bytes)
 {
     if (!is->seek_req) {
+//#ifdef DBPRINT
+        printf("stream_seek:%lld %lld   \n", pos, rel);
+//#endif
+
         is->seek_pos = pos;
         is->seek_rel = rel;
         is->seek_flags &= ~AVSEEK_FLAG_BYTE;
@@ -1765,6 +1774,10 @@ static void update_video_pts(VideoState *is, double pts, int64_t pos, int serial
     /* update current video pts */
     set_clock(&is->vidclk, pts, serial);
     sync_clock_to_slave(&is->extclk, &is->vidclk);
+
+#ifdef DBPRINT
+    printf("update_video_pts %7.2f %ld %d  \n", pts, pos, serial);
+#endif
 }
 
 
@@ -1816,12 +1829,12 @@ retry:
             lastvp = frame_queue_peek_last(&is->pictq);
             vp = frame_queue_peek(&is->pictq);
 
-            if (vp->serial != is->videoq.serial) 
-            {
-                frame_queue_next(&is->pictq);
-                printf("skip1\n");
-                goto retry;
-            }
+            //if (vp->serial != is->videoq.serial) 
+            //{
+            //    frame_queue_next(&is->pictq);
+            //    printf("skip1\n");
+            //    goto retry;
+            //}
 
             if (lastvp->serial != vp->serial)
             {
@@ -1869,7 +1882,10 @@ retry:
             }
             SDL_UnlockMutex(is->pictq.mutex);
 
-            printf("target time %f  frame_timer %f  vp->pts %f   \n", time, is->frame_timer, vp->pts);
+            
+            ////printf("target time %f  frame_timer %f  vp->pts %f   \n", time, is->frame_timer, vp->pts);
+            
+            
             // リアルタイムで更新できているときは time = is->frame_timer = vp->ptsとなるが (fpsが29.97だからずれることがあるが)
             // debug modeで遅れていると vp->ptsが進んでしまうので そのままは使えない??
 
@@ -1882,7 +1898,7 @@ retry:
                 Frame *nextvp = frame_queue_peek_next(&is->pictq);
                 duration = vp_duration(is, vp, nextvp);
                 //if(!is->step && (framedrop>0 || (framedrop && get_master_sync_type(is) != AV_SYNC_VIDEO_MASTER)) && time > is->frame_timer + duration)
-                if (is->step)
+                if (is->step == 1 && is->paused == 0)
                 {
                     // 強制更新する
                 }
@@ -1904,7 +1920,7 @@ retry:
                 {
                     // 更新する必要がない
                     is->force_refresh = 0;
-                    printf("reuse texure  \n");
+                    //printf("reuse texure  \n");
                     goto display;
                 }
             }
@@ -1954,6 +1970,7 @@ retry:
             is->force_refresh = 1;
             is->frame_number++;
 
+            // stepで画面更新したら pause状態にもどる
             if (is->step && !is->paused)
             {
                 stream_toggle_pause(is);
@@ -1965,6 +1982,7 @@ display:
         /* display picture */
         //  pause 掛かっていると is->pictq.rindex_shownが 1にならないので結局更新できていない
         if (!display_disable && is->force_refresh && is->show_mode == VideoState::SHOW_MODE_VIDEO && is->pictq.rindex_shown)
+        //if(!display_disable && is->force_refresh && is->show_mode == VideoState::SHOW_MODE_VIDEO)
             video_display(is);
     }
 
@@ -2000,7 +2018,8 @@ display:
 
             av_bprint_init(&buf, 0, AV_BPRINT_SIZE_AUTOMATIC);
             av_bprintf(&buf,
-                      "%7.2f %s:%7.3f fd=%4d aq=%5dKB vq=%5dKB sq=%5dB f=%lld/%lld   \r",
+                      "t:%7.2f %7.2f %s:%7.3f fd=%4d aq=%5dKB vq=%5dKB sq=%5dB f=%lld/%lld   \r",
+                      targettime,
                       get_master_clock(is),
                       (is->audio_st && is->video_st) ? "A-V" : (is->video_st ? "M-V" : (is->audio_st ? "M-A" : "   ")),
                       av_diff,
@@ -2048,6 +2067,9 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts, double 
     vp->format = src_frame->format;
 
     vp->pts = pts;
+#ifdef DBPRINT
+    printf("queue_picture:%7.2f   \n", pts);
+#endif
     vp->duration = duration;
     vp->pos = pos;
     vp->serial = serial;
@@ -3300,11 +3322,15 @@ static int read_thread(void *arg)
 // FIXME the +-2 is due to rounding being not done in the correct direction in generation
 //      of the seek_pos/seek_rel variables
 
+            av_log(NULL, AV_LOG_INFO, "rt:seek_req %ld %ld %ld  \n", seek_target, seek_min, seek_max);
+
             ret = avformat_seek_file(is->ic, -1, seek_min, seek_target, seek_max, is->seek_flags);
             if (ret < 0) {
                 av_log(NULL, AV_LOG_ERROR,
                        "%s: error while seeking\n", is->ic->url);
             } else {
+                av_log(NULL, AV_LOG_INFO, "rt:seek_req done  \n");
+
                 if (is->audio_stream >= 0)
                     packet_queue_flush(&is->audioq);
                 if (is->subtitle_stream >= 0)
@@ -3709,8 +3735,9 @@ void ffplay_seekpos(double pos)
 
         double newpos = pos * AV_TIME_BASE;
         double relpos = (pos - oldpos) * AV_TIME_BASE;
-        stream_seek(cur_stream, (int64_t)(newpos), (int64_t)(oldpos), 0);
-        //stream_seek(cur_stream, (int64_t)(pos * AV_TIME_BASE), (int64_t)((pos - oldpos) * AV_TIME_BASE), 0);
+        //stream_seek(cur_stream, (int64_t)(newpos), 0, 0);
+        //stream_seek(cur_stream, (int64_t)(newpos), (int64_t)(oldpos), 0);
+        stream_seek(cur_stream, (int64_t)(pos * AV_TIME_BASE), (int64_t)((pos - oldpos) * AV_TIME_BASE), 0);
     }
     SDL_UnlockMutex(api_mutex);
     eventdisableflag = 0;

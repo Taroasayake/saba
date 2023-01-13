@@ -1111,7 +1111,10 @@ namespace saba
 		DrawLightGuide();
 
 		// スレッド終了を待つ
-		ViewMpegWaitDone();
+		//ViewMpegWaitDone();
+
+		// Seek処理
+		DoVideoSeek();
 	}
 
 	namespace
@@ -1597,23 +1600,16 @@ namespace saba
 		}
 		if (ImGui::Button("Reset Anim"))
 		{
-			if (ffplay_getpause() == 0)
-			{
-				ffplay_pause();
-			}
 			ResetAnimation();
 		}
 		mpeg_push_init = false;
 		if (ImGui::Button("Init Anim"))
 		{
-			if (ffplay_getpause() == 0)
-			{
-				ffplay_pause();
-			}
 			InitializeAnimation();
 			mpeg_push_init = true;
 
-			ffplay_seekpos(0.);
+			//ffplay_seekpos(0.);
+			VideoSeek(0.);
 		}
 		if (ImGui::Button("Clear Animation"))
 		{
@@ -1634,6 +1630,35 @@ namespace saba
 		}
 
 		ImGui::PopID();
+	}
+
+	void Viewer::VideoSeek(double pos)
+	{
+		DoSeekCounter = 3;
+		DoSeekWaitCounter = 0;
+		DoSeekPos = pos;
+	}
+	void Viewer::DoVideoSeek()
+	{
+		if (DoSeekCounter > 0)
+		{
+			if (DoSeekWaitCounter == 0)
+			{
+				--DoSeekCounter;
+				ffplay_seekpos(DoSeekPos);
+				DoSeekWaitCounter = 10;
+			}
+			else
+			{
+				--DoSeekWaitCounter;
+			}
+		}
+	}
+	void Viewer::SeekInit()
+	{
+		DoSeekCounter = 0;
+		DoSeekWaitCounter = 0;
+		DoSeekPos = 0.;
 	}
 
 	void Viewer::DrawCameraCtrl()
@@ -1898,6 +1923,10 @@ namespace saba
 		case ViewerContext::PlayMode::PrevFrame:
 			m_context.SetAnimationTime(animTime - 1.0f / m_animCtrlEditFPS);
 			m_context.SetPlayMode(ViewerContext::PlayMode::Update);
+			{
+				double animTime = m_context.GetAnimationTime();
+				ffplay_seekpos(animTime);
+			}
 			break;
 		default:
 			break;
@@ -3311,8 +3340,8 @@ namespace saba
 	bool resetTimeth;
 	bool prevframeth;
 
-	void Viewer::ViewMpeg(float animFrame, float animTime, bool resetTime, bool prevframe)
-	{
+	//void Viewer::ViewMpeg(float animFrame, float animTime, bool resetTime, bool prevframe)
+	//{
 //#ifdef MPEG_DECORD_THRED_PROC_ENABLE
 //		animFrameth = animFrame;
 //		animTimeth = animTime;
@@ -3327,10 +3356,10 @@ namespace saba
 //		cv.notify_one();
 //		//SABA_INFO("ViewMpeg() out");
 //#endif
-	}
+	//}
 
-	void Viewer::ViewMpegWaitDone()
-	{
+//	void Viewer::ViewMpegWaitDone()
+//	{
 //		// 終わりを待ってみる
 //		if(b_view_mpeg)
 //		{
@@ -3368,10 +3397,10 @@ namespace saba
 //
 //			//SABA_INFO("ViewMpeg() out2");
 //		}
-	}
+//	}
 
-	void Viewer::ViewMpegThread()
-	{
+	//void Viewer::ViewMpegThread()
+	//{
 //#ifdef MPEG_DECORD_THRED_PROC_ENABLE
 //		//SABA_INFO("ViewMpegThread.");
 //
@@ -3405,12 +3434,12 @@ namespace saba
 //			cv_done.notify_one();
 //		} // デストラクタでアンロックする
 //#endif
-	}
+	//}
 
-	void Viewer::ViewMpeg2(float animFrame, float animTime, bool resetTime, bool prevframe)
-	{
-		if (b_view_mpeg == true)
-		{
+	//void Viewer::ViewMpeg2(float animFrame, float animTime, bool resetTime, bool prevframe)
+	//{
+//		if (b_view_mpeg == true)
+		//{
 			//if (resetTime == true)
 			//{
 			//	int result = av_seek_frame(format_context, stream_index, 0, AVSEEK_FLAG_BACKWARD);
@@ -3528,14 +3557,14 @@ namespace saba
 			//		break;
 			//	}
 			//}
-		}
-	}
+		//}
+	//}
 
 
-	void Viewer::DrawMpeg()
-	{
-		if (b_view_mpeg == true)
-		{
+	//void Viewer::DrawMpeg()
+	//{
+//		if (b_view_mpeg == true)
+		//{
 			//// サイズ計算と作画
 
 			//ImVec2 imsize(ImGui::GetContentRegionAvail().x, codec_context->height * (ImGui::GetContentRegionAvail().x / codec_context->width));
@@ -3549,8 +3578,8 @@ namespace saba
 			//	ImGui::Image((void*)(intptr_t)m_dummyImageTex1, imsize);
 			//}
 
-		}
-	}
+		//}
+	//}
 
 	void Viewer::DrawVideoImage()
 	{
@@ -3644,11 +3673,11 @@ namespace saba
 		{
 			LoadMpegCheck();
 #ifdef MPEG_DECORD_THRED_PROC_ENABLE
-			ViewMpeg(animFrame, animTime, mpeg_push_init, mpeg_push_prev);
+			//ViewMpeg(animFrame, animTime, mpeg_push_init, mpeg_push_prev);
 #else
-			ViewMpeg2(animFrame, animTime, mpeg_push_init, mpeg_push_prev);
+			//ViewMpeg2(animFrame, animTime, mpeg_push_init, mpeg_push_prev);
 #endif
-			DrawMpeg();															// ImguiのMpeg画像スレッド化すると、同期が取れなくなるかもしれないので先にする?
+			//DrawMpeg();															// ImguiのMpeg画像スレッド化すると、同期が取れなくなるかもしれないので先にする?
 		}
 
 		ImGui::PopID();
